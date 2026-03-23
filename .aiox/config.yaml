@@ -1,0 +1,21 @@
+# AIOX Project Configuration
+version: 2.1.0
+project:
+  name: scribia
+  type: greenfield
+  created: 2026-03-23
+
+environment:
+  bootstrapped: true
+  bootstrap_date: 2026-03-23
+
+workflow:
+  current: greenfield-fullstack
+  phase: 0-bootstrap-complete
+
+permissions:
+  mode: ask
+
+settings:
+  auto_update_status: true
+  quality_gates_enabled: true

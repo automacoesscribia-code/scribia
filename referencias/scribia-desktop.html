@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScribIA — App Desktop Captação</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --purple: #6B4EFF;
+    --purple-light: #8B71FF;
+    --purple-dark: #4A35CC;
+    --purple-dim: rgba(107,78,255,0.12);
+    --purple-glow: rgba(107,78,255,0.3);
+    --bg: #0A0A0F;
+    --bg2: #111118;
+    --bg3: #17171F;
+    --bg4: #1E1E28;
+    --border: rgba(255,255,255,0.07);
+    --border-purple: rgba(107,78,255,0.35);
+    --text: #F0EFF8;
+    --text2: #9896B0;
+    --text3: #5C5A72;
+    --green: #00D4A0;
+    --red: #FF4D6A;
+    --yellow: #FFB830;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; }
+
+  /* Window chrome */
+  .window-chrome {
+    background:var(--bg2); border-bottom:1px solid var(--border);
+    padding:12px 20px; display:flex; align-items:center; gap:12px;
+  }
+  .traffic-lights { display:flex; gap:6px; }
+  .tl { width:12px; height:12px; border-radius:50%; }
+  .tl-red { background:#FF5F57; }
+  .tl-yellow { background:#FEBC2E; }
+  .tl-green { background:#28C840; }
+  .window-title { flex:1; text-align:center; font-size:12px; color:var(--text3); font-family:'DM Mono',monospace; }
+
+  /* Top bar */
+  .topbar {
+    background:var(--bg2); border-bottom:1px solid var(--border);
+    padding:14px 28px; display:flex; align-items:center; justify-content:space-between;
+  }
+  .logo { font-family:'Syne',sans-serif; font-weight:800; font-size:18px; color:var(--purple-light); letter-spacing:-0.3px; }
+  .event-info { text-align:center; }
+  .event-name { font-size:13px; font-weight:500; color:var(--text); }
+  .lecture-name { font-size:11px; color:var(--text3); margin-top:1px; }
+  .status-dot { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--green); }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--green); animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(0.85)} }
+
+  /* Main area */
+  .main { flex:1; display:grid; grid-template-columns:1fr 280px; padding:28px; gap:24px; }
+
+  /* Recorder panel */
+  .recorder { display:flex; flex-direction:column; gap:20px; }
+
+  /* Timer */
+  .timer-display {
+    text-align:center; padding:28px 0 20px;
+  }
+  .rec-indicator {
+    display:inline-flex; align-items:center; gap:8px;
+    background:rgba(255,77,106,0.1); border:1px solid rgba(255,77,106,0.25);
+    padding:5px 14px; border-radius:20px; margin-bottom:16px;
+  }
+  .rec-dot { width:8px; height:8px; border-radius:50%; background:var(--red); animation:pulse 1s ease-in-out infinite; }
+  .rec-label { font-size:11px; font-weight:500; color:var(--red); letter-spacing:1px; }
+  .timer { font-family:'DM Mono',monospace; font-size:56px; font-weight:500; color:var(--text); letter-spacing:-2px; }
+  .timer-sub { font-size:11px; color:var(--text3); margin-top:4px; }
+
+  /* Waveform */
+  .waveform-card {
+    background:var(--bg2); border:1px solid var(--border); border-radius:14px;
+    padding:24px; position:relative; overflow:hidden;
+  }
+  .waveform-card::before {
+    content:''; position:absolute; inset:0;
+    background: radial-gradient(ellipse at 50% 100%, rgba(107,78,255,0.06) 0%, transparent 70%);
+  }
+  .waveform-label { font-size:10.5px; color:var(--text3); text-transform:uppercase; letter-spacing:1px; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+  .waveform-label span { flex:1; }
+  .waveform-level { font-family:'DM Mono',monospace; font-size:11px; color:var(--purple-light); }
+  canvas#waveCanvas { width:100%; height:80px; display:block; }
+
+  /* Device selector */
+  .device-row {
+    background:var(--bg2); border:1px solid var(--border); border-radius:10px;
+    padding:14px 18px; display:flex; align-items:center; gap:12px;
+  }
+  .device-icon { width:36px; height:36px; border-radius:8px; background:var(--purple-dim); border:1px solid var(--border-purple); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .device-icon svg { width:17px; height:17px; color:var(--purple-light); }
+  .device-info { flex:1; }
+  .device-name { font-size:13px; font-weight:500; color:var(--text); }
+  .device-sub { font-size:11px; color:var(--text3); margin-top:1px; }
+  .btn-change { background:transparent; border:1px solid var(--border); border-radius:6px; padding:6px 12px; font-size:11.5px; color:var(--text2); cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.15s; }
+  .btn-change:hover { border-color:var(--border-purple); color:var(--purple-light); }
+
+  /* Status pills */
+  .status-row { display:flex; gap:8px; }
+  .status-pill {
+    flex:1; background:var(--bg2); border:1px solid var(--border); border-radius:8px;
+    padding:10px 14px; display:flex; align-items:center; gap:8px;
+  }
+  .status-pill svg { width:14px; height:14px; }
+  .sp-label { font-size:11px; color:var(--text3); }
+  .sp-value { font-size:12px; font-weight:500; color:var(--text); margin-top:1px; }
+  .ok { color:var(--green); }
+  .warn { color:var(--yellow); }
+
+  /* Controls */
+  .controls {
+    display:flex; align-items:center; justify-content:center; gap:16px; padding:8px 0;
+  }
+  .ctrl-btn {
+    width:52px; height:52px; border-radius:50%; border:none; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'DM Sans',sans-serif; transition:all 0.15s;
+  }
+  .ctrl-btn svg { width:20px; height:20px; }
+  .ctrl-btn.pause { background:var(--bg3); border:1px solid var(--border); color:var(--text2); }
+  .ctrl-btn.pause:hover { border-color:var(--border-purple); color:var(--purple-light); }
+  .ctrl-btn.stop { background:rgba(255,77,106,0.1); border:1px solid rgba(255,77,106,0.3); color:var(--red); }
+  .ctrl-btn.stop:hover { background:rgba(255,77,106,0.2); }
+  .ctrl-btn.rec-btn {
+    width:64px; height:64px;
+    background:var(--purple); color:#fff; box-shadow:0 0 24px var(--purple-glow);
+  }
+  .ctrl-btn.rec-btn:hover { background:var(--purple-light); }
+  .ctrl-btn.secondary { background:var(--bg3); border:1px solid var(--border); color:var(--text2); width:40px; height:40px; }
+
+  /* Right panel */
+  .right-panel { display:flex; flex-direction:column; gap:16px; }
+  .info-card { background:var(--bg2); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .info-card-header { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; }
+  .info-card-header svg { width:14px; height:14px; color:var(--purple-light); }
+  .info-card-title { font-size:11.5px; font-weight:500; color:var(--text2); text-transform:uppercase; letter-spacing:0.8px; }
+  .info-rows { padding:4px 0; }
+  .info-row { padding:10px 16px; display:flex; flex-direction:column; gap:2px; border-bottom:1px solid var(--border); }
+  .info-row:last-child { border-bottom:none; }
+  .info-row-label { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:0.8px; }
+  .info-row-value { font-size:13px; color:var(--text); font-weight:500; }
+
+  /* Upload progress */
+  .upload-card { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:16px; }
+  .upload-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .upload-label { font-size:11.5px; color:var(--text2); font-weight:500; }
+  .upload-pct { font-family:'DM Mono',monospace; font-size:12px; color:var(--green); }
+  .upload-bar { height:3px; background:var(--bg4); border-radius:2px; overflow:hidden; margin-bottom:8px; }
+  .upload-fill { height:100%; background:linear-gradient(90deg, var(--purple), var(--green)); border-radius:2px; animation: uploadPulse 2s ease-in-out infinite; }
+  @keyframes uploadPulse { 0%{width:91%} 50%{width:95%} 100%{width:91%} }
+  .upload-detail { font-size:10.5px; color:var(--text3); }
+
+  /* Log */
+  .log-card { background:var(--bg2); border:1px solid var(--border); border-radius:12px; overflow:hidden; flex:1; }
+  .log-body { padding:12px; font-family:'DM Mono',monospace; font-size:10.5px; color:var(--text3); line-height:1.7; }
+  .log-line { display:flex; gap:8px; }
+  .log-time { color:var(--text3); flex-shrink:0; }
+  .log-msg.ok { color:var(--green); }
+  .log-msg.info { color:var(--purple-light); }
+  .log-msg.warn { color:var(--yellow); }
+
+  @keyframes waveAnim { 0%,100%{height:4px} 50%{height:var(--h)} }
+</style>
+</head>
+<body>
+
+<!-- Window Chrome (macOS style) -->
+<div class="window-chrome">
+  <div class="traffic-lights">
+    <div class="tl tl-red"></div>
+    <div class="tl tl-yellow"></div>
+    <div class="tl tl-green"></div>
+  </div>
+  <div class="window-title">ScribIA Desktop · v2.1.4</div>
+</div>
+
+<!-- Top Bar -->
+<div class="topbar">
+  <div class="logo">SCRIBIA</div>
+  <div class="event-info">
+    <div class="event-name">TechSummit Brasil 2025</div>
+    <div class="lecture-name">Sala A · Trilha de Inteligência Artificial</div>
+  </div>
+  <div class="status-dot">
+    <div class="dot"></div>
+    Conectado
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- LEFT: Recorder -->
+  <div class="recorder">
+
+    <!-- Timer -->
+    <div class="timer-display">
+      <div class="rec-indicator">
+        <div class="rec-dot"></div>
+        <span class="rec-label">REC</span>
+      </div>
+      <div class="timer">00:42:17</div>
+      <div class="timer-sub">Gravação em andamento</div>
+    </div>
+
+    <!-- Waveform -->
+    <div class="waveform-card">
+      <div class="waveform-label">
+        <span>Forma de onda — entrada</span>
+        <span class="waveform-level">-12 dB</span>
+      </div>
+      <canvas id="waveCanvas" height="80"></canvas>
+    </div>
+
+    <!-- Device selector -->
+    <div class="device-row">
+      <div class="device-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </div>
+      <div class="device-info">
+        <div class="device-name">Rode NT-USB Mini</div>
+        <div class="device-sub">USB · 44.1kHz · Stereo</div>
+      </div>
+      <button class="btn-change">Trocar</button>
+    </div>
+
+    <!-- Status pills -->
+    <div class="status-row">
+      <div class="status-pill">
+        <svg class="ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/></svg>
+        <div><div class="sp-label">Servidor</div><div class="sp-value ok">Conectado</div></div>
+      </div>
+      <div class="status-pill">
+        <svg class="ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="6" width="18" height="13" rx="2"/><path d="M23 13V9"/></svg>
+        <div><div class="sp-label">Buffer</div><div class="sp-value ok">Normal</div></div>
+      </div>
+      <div class="status-pill">
+        <svg class="warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>
+        <div><div class="sp-label">Upload</div><div class="sp-value warn">91%</div></div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <button class="ctrl-btn secondary" title="Configurações">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 19.07M4.93 4.93A10 10 0 0 1 19.07 19.07"/></svg>
+      </button>
+      <button class="ctrl-btn pause" title="Pausar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      </button>
+      <button class="ctrl-btn rec-btn" title="Gravando">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="white" stroke="none"/></svg>
+      </button>
+      <button class="ctrl-btn stop" title="Parar e Enviar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+      </button>
+      <button class="ctrl-btn secondary" title="Histórico">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- RIGHT: Metadata + Upload -->
+  <div class="right-panel">
+    <div class="info-card">
+      <div class="info-card-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span class="info-card-title">Metadados da sessão</span>
+      </div>
+      <div class="info-rows">
+        <div class="info-row">
+          <div class="info-row-label">Evento</div>
+          <div class="info-row-value">TechSummit Brasil 2025</div>
+        </div>
+        <div class="info-row">
+          <div class="info-row-label">Palestrante</div>
+          <div class="info-row-value">Rafael Andrade</div>
+        </div>
+        <div class="info-row">
+          <div class="info-row-label">Título da palestra</div>
+          <div class="info-row-value">IA Generativa na Prática</div>
+        </div>
+        <div class="info-row">
+          <div class="info-row-label">Data e hora</div>
+          <div class="info-row-value">14 nov 2025 · 09:00</div>
+        </div>
+        <div class="info-row">
+          <div class="info-row-label">Sala</div>
+          <div class="info-row-value">Auditório A</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Upload status -->
+    <div class="upload-card">
+      <div class="upload-top">
+        <span class="upload-label">Upload em tempo real</span>
+        <span class="upload-pct">91%</span>
+      </div>
+      <div class="upload-bar">
+        <div class="upload-fill"></div>
+      </div>
+      <div class="upload-detail">127 MB enviados · ~12 MB pendentes · 2.4 MB/s</div>
+    </div>
+
+    <!-- Log -->
+    <div class="log-card">
+      <div class="info-card-header">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--purple-light)" stroke-width="2"><polyline points="4,17 10,11 4,5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        <span class="info-card-title">Log do sistema</span>
+      </div>
+      <div class="log-body">
+        <div class="log-line"><span class="log-time">09:42:17</span><span class="log-msg ok">Upload chunk 847/858 ✓</span></div>
+        <div class="log-line"><span class="log-time">09:42:15</span><span class="log-msg info">Nível de áudio: -12dB</span></div>
+        <div class="log-line"><span class="log-time">09:42:10</span><span class="log-msg ok">Buffer sync OK</span></div>
+        <div class="log-line"><span class="log-time">09:41:58</span><span class="log-msg info">Compressão: OPUS 128kbps</span></div>
+        <div class="log-line"><span class="log-time">09:41:50</span><span class="log-msg ok">Conexão estável · 2.4 MB/s</span></div>
+        <div class="log-line"><span class="log-time">09:40:12</span><span class="log-msg warn">Pico detectado: -3dB</span></div>
+        <div class="log-line"><span class="log-time">09:00:01</span><span class="log-msg ok">Sessão iniciada</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Animated waveform
+const canvas = document.getElementById('waveCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+canvas.height = 80 * window.devicePixelRatio;
+ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+let t = 0;
+const bars = 80;
+const barW = canvas.offsetWidth / bars;
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.offsetWidth, 80);
+  for (let i = 0; i < bars; i++) {
+    const x = i * barW;
+    const noise = Math.sin(i * 0.4 + t) * 0.5 + Math.sin(i * 0.8 + t * 1.3) * 0.3 + Math.random() * 0.2;
+    const amp = (Math.abs(noise) * 28 + 4);
+    const alpha = 0.4 + Math.abs(noise) * 0.6;
+    ctx.fillStyle = `rgba(107,78,255,${alpha})`;
+    ctx.beginPath();
+    ctx.roundRect(x + 1, 40 - amp, barW - 2, amp * 2, 2);
+    ctx.fill();
+  }
+  t += 0.05;
+  requestAnimationFrame(draw);
+}
+draw();
+</script>
+</body>
+</html>

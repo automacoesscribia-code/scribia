@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScribIA — Adicionar Palestrantes</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --purple: #6B4EFF;
+    --purple-light: #8B71FF;
+    --purple-dim: rgba(107,78,255,0.12);
+    --purple-glow: rgba(107,78,255,0.25);
+    --bg: #0A0A0F;
+    --bg2: #111118;
+    --bg3: #17171F;
+    --bg4: #1E1E28;
+    --border: rgba(255,255,255,0.07);
+    --border-purple: rgba(107,78,255,0.35);
+    --text: #F0EFF8;
+    --text2: #9896B0;
+    --text3: #5C5A72;
+    --green: #00D4A0;
+    --yellow: #FFB830;
+    --red: #FF5C72;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; display:flex; }
+
+  /* Sidebar */
+  .sidebar { width:220px; min-height:100vh; background:var(--bg2); border-right:1px solid var(--border); padding:0 0 24px; position:fixed; left:0; top:0; bottom:0; display:flex; flex-direction:column; }
+  .logo-area { padding:28px 20px 24px; border-bottom:1px solid var(--border); }
+  .logo-text { font-family:'Syne',sans-serif; font-weight:800; font-size:22px; color:var(--purple-light); }
+  .logo-text span { color:var(--text3); font-size:10px; display:block; font-weight:400; font-family:'DM Sans',sans-serif; margin-top:2px; }
+  .nav { padding:20px 12px; flex:1; display:flex; flex-direction:column; gap:2px; }
+  .nav-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; font-size:13.5px; color:var(--text2); cursor:pointer; transition:all 0.15s; }
+  .nav-item:hover { background:var(--bg3); color:var(--text); }
+  .nav-item.active { background:var(--purple-dim); color:var(--purple-light); border:1px solid var(--border-purple); }
+  .nav-item svg { width:16px; height:16px; flex-shrink:0; }
+  .nav-section { font-size:10px; color:var(--text3); letter-spacing:1.2px; text-transform:uppercase; padding:16px 12px 6px; }
+  .sidebar-bottom { padding:16px 12px; border-top:1px solid var(--border); }
+  .user-card { display:flex; align-items:center; gap:10px; }
+  .avatar { width:32px; height:32px; border-radius:50%; background:var(--purple-dim); border:1px solid var(--border-purple); display:flex; align-items:center; justify-content:center; font-size:12px; font-family:'Syne',sans-serif; font-weight:700; color:var(--purple-light); }
+  .user-name { font-size:12.5px; font-weight:500; }
+  .user-role { font-size:10px; color:var(--text3); }
+
+  /* Main */
+  .main { margin-left:220px; flex:1; padding:32px 40px; }
+
+  /* Breadcrumb */
+  .breadcrumb { font-size:12px; color:var(--text3); margin-bottom:24px; display:flex; align-items:center; gap:6px; }
+  .breadcrumb span { color:var(--text2); }
+  .breadcrumb a { color:var(--text3); cursor:pointer; }
+  .breadcrumb a:hover { color:var(--purple-light); }
+
+  /* Header */
+  .page-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:32px; }
+  .page-title { font-family:'Syne',sans-serif; font-size:26px; font-weight:800; color:var(--text); }
+  .page-sub { font-size:13px; color:var(--text3); margin-top:4px; }
+  .header-badge { background:var(--purple-dim); border:1px solid var(--border-purple); border-radius:20px; padding:5px 14px; font-size:12px; color:var(--purple-light); display:flex; align-items:center; gap:6px; }
+
+  /* Invite section */
+  .invite-section {
+    background:var(--bg2); border:1px solid var(--border); border-radius:16px;
+    padding:28px; margin-bottom:24px;
+  }
+  .section-title { font-family:'Syne',sans-serif; font-size:16px; font-weight:700; color:var(--text); margin-bottom:4px; }
+  .section-sub { font-size:13px; color:var(--text3); margin-bottom:24px; }
+
+  /* Email input */
+  .email-input-row { display:flex; gap:12px; margin-bottom:16px; }
+  .email-wrap { flex:1; position:relative; }
+  .email-input {
+    width:100%; background:var(--bg3); border:1px solid var(--border); border-radius:10px;
+    padding:13px 16px 13px 44px; font-size:14px; color:var(--text);
+    font-family:'DM Sans',sans-serif; outline:none; transition:all 0.15s;
+  }
+  .email-input:focus { border-color:var(--border-purple); box-shadow:0 0 0 3px var(--purple-dim); }
+  .email-input::placeholder { color:var(--text3); }
+  .email-icon { position:absolute; left:14px; top:50%; transform:translateY(-50%); }
+  .email-icon svg { width:18px; height:18px; color:var(--text3); }
+  .btn-send {
+    background:var(--purple); color:#fff; border:none; border-radius:10px;
+    padding:13px 24px; font-size:14px; font-family:'DM Sans',sans-serif; font-weight:500;
+    cursor:pointer; display:flex; align-items:center; gap:8px; white-space:nowrap; transition:all 0.15s;
+    box-shadow: 0 4px 20px var(--purple-glow);
+  }
+  .btn-send:hover { background:var(--purple-light); transform:translateY(-1px); }
+  .btn-send svg { width:16px; height:16px; }
+
+  /* Extras row */
+  .extras-row { display:flex; align-items:center; gap:16px; }
+  .divider-line { flex:1; height:1px; background:var(--border); }
+  .divider-text { font-size:11.5px; color:var(--text3); }
+  .btn-csv { background:transparent; border:1px solid var(--border); border-radius:8px; padding:9px 16px; font-size:12.5px; color:var(--text2); cursor:pointer; font-family:'DM Sans',sans-serif; display:flex; align-items:center; gap:7px; transition:all 0.15s; }
+  .btn-csv:hover { border-color:var(--border-purple); color:var(--purple-light); }
+  .btn-csv svg { width:14px; height:14px; }
+
+  /* Tags de e-mails adicionados */
+  .tags-area { margin-top:16px; display:flex; flex-wrap:wrap; gap:8px; min-height:36px; }
+  .email-tag {
+    background:var(--purple-dim); border:1px solid var(--border-purple);
+    border-radius:20px; padding:5px 12px 5px 10px; font-size:12px; color:var(--purple-light);
+    display:flex; align-items:center; gap:6px;
+  }
+  .tag-remove { cursor:pointer; opacity:0.5; font-size:14px; line-height:1; transition:opacity 0.1s; }
+  .tag-remove:hover { opacity:1; }
+
+  /* Grids */
+  .lists-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .list-card { background:var(--bg2); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+  .list-header { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .list-title { font-family:'Syne',sans-serif; font-size:13px; font-weight:700; color:var(--text); display:flex; align-items:center; gap:8px; }
+  .count-badge { background:var(--bg3); border:1px solid var(--border); border-radius:20px; padding:2px 10px; font-size:11px; color:var(--text2); font-family:'DM Sans',sans-serif; font-weight:400; }
+
+  /* Pending table */
+  .table { width:100%; border-collapse:collapse; }
+  .table th { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:0.8px; padding:10px 18px; text-align:left; border-bottom:1px solid var(--border); }
+  .table td { padding:12px 18px; font-size:13px; border-bottom:1px solid var(--border); }
+  .table tr:last-child td { border-bottom:none; }
+  .table tr:hover td { background:var(--bg3); }
+  .chip { display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:20px; font-size:10.5px; font-weight:500; }
+  .chip::before { content:''; width:5px; height:5px; border-radius:50%; background:currentColor; }
+  .chip-yellow { background:rgba(255,184,48,0.1); color:var(--yellow); }
+  .chip-green { background:rgba(0,212,160,0.1); color:var(--green); }
+  .chip-red { background:rgba(255,92,114,0.1); color:var(--red); }
+  .action-icons { display:flex; gap:6px; }
+  .icon-btn { width:26px; height:26px; border-radius:6px; background:var(--bg3); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.15s; }
+  .icon-btn:hover { border-color:var(--border-purple); background:var(--purple-dim); }
+  .icon-btn svg { width:12px; height:12px; color:var(--text2); }
+  .icon-btn.danger:hover { border-color:rgba(255,92,114,0.4); background:rgba(255,92,114,0.08); }
+  .icon-btn.danger:hover svg { color:var(--red); }
+
+  /* Confirmed speakers list */
+  .speakers-list { padding:8px 0; }
+  .speaker-item { padding:12px 18px; display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--border); transition:background 0.1s; }
+  .speaker-item:last-child { border-bottom:none; }
+  .speaker-item:hover { background:var(--bg3); }
+  .sp-avatar { width:36px; height:36px; border-radius:50%; background:var(--purple-dim); border:1px solid var(--border-purple); display:flex; align-items:center; justify-content:center; font-size:12px; font-family:'Syne',sans-serif; font-weight:800; color:var(--purple-light); flex-shrink:0; }
+  .sp-info { flex:1; min-width:0; }
+  .sp-name { font-size:13px; font-weight:500; color:var(--text); }
+  .sp-lecture { font-size:11px; color:var(--text3); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sp-status { display:flex; align-items:center; gap:6px; }
+
+  @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+  .invite-section { animation:fadeUp 0.3s ease both 0.05s; }
+  .lists-grid { animation:fadeUp 0.3s ease both 0.15s; }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="logo-area">
+    <div class="logo-text">SCRIBIA<span>Painel do Organizador</span></div>
+  </div>
+  <nav class="nav">
+    <div class="nav-section">Principal</div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+      Eventos
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      Palestras
+    </div>
+    <div class="nav-section">Gestão</div>
+    <div class="nav-item active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+      Palestrantes
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+      Participantes
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+      Materiais
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+      Relatórios
+    </div>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="user-card">
+      <div class="avatar">MR</div>
+      <div>
+        <div class="user-name">Marina Rocha</div>
+        <div class="user-role">Organizadora</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- Main -->
+<main class="main">
+
+  <div class="breadcrumb">
+    <a>TechSummit Brasil 2025</a>
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9,18 15,12 9,6"/></svg>
+    <span>Palestrantes</span>
+  </div>
+
+  <div class="page-header">
+    <div>
+      <div class="page-title">Adicionar Palestrantes</div>
+      <div class="page-sub">Convide por e-mail ou importe uma lista CSV</div>
+    </div>
+    <div class="header-badge">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+      7 confirmados · 3 pendentes
+    </div>
+  </div>
+
+  <!-- Invite section -->
+  <div class="invite-section">
+    <div class="section-title">Convidar por e-mail</div>
+    <div class="section-sub">O palestrante receberá um link de acesso e poderá completar seu perfil</div>
+
+    <div class="email-input-row">
+      <div class="email-wrap">
+        <div class="email-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        </div>
+        <input class="email-input" type="email" id="emailInput" placeholder="nome@empresa.com.br" />
+      </div>
+      <button class="btn-send" onclick="addEmail()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/></svg>
+        Enviar convite
+      </button>
+    </div>
+
+    <div class="tags-area" id="tagsArea">
+      <div class="email-tag">carla.mendes@google.com <span class="tag-remove" onclick="removeTag(this)">×</span></div>
+      <div class="email-tag">rafael.andrade@gmail.com <span class="tag-remove" onclick="removeTag(this)">×</span></div>
+    </div>
+
+    <div class="extras-row" style="margin-top:20px;">
+      <div class="divider-line"></div>
+      <div class="divider-text">ou</div>
+      <div class="divider-line"></div>
+      <button class="btn-csv">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Importar CSV
+      </button>
+      <button class="btn-csv">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Baixar modelo
+      </button>
+    </div>
+  </div>
+
+  <!-- Lists -->
+  <div class="lists-grid">
+
+    <!-- Pending invites -->
+    <div class="list-card">
+      <div class="list-header">
+        <div class="list-title">
+          Convites pendentes
+          <span class="count-badge">3</span>
+        </div>
+      </div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>E-mail</th>
+            <th>Enviado em</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>luisa.s@startup.io</td>
+            <td style="color:var(--text3);">há 2h</td>
+            <td><span class="chip chip-yellow">Pendente</span></td>
+            <td><div class="action-icons">
+              <div class="icon-btn" title="Reenviar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 1 0 .49-3.12"/></svg></div>
+              <div class="icon-btn danger" title="Remover"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6"/></svg></div>
+            </div></td>
+          </tr>
+          <tr>
+            <td>felipe.o@corp.com.br</td>
+            <td style="color:var(--text3);">há 5h</td>
+            <td><span class="chip chip-yellow">Pendente</span></td>
+            <td><div class="action-icons">
+              <div class="icon-btn" title="Reenviar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 1 0 .49-3.12"/></svg></div>
+              <div class="icon-btn danger" title="Remover"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6"/></svg></div>
+            </div></td>
+          </tr>
+          <tr>
+            <td>bruno.n@techco.io</td>
+            <td style="color:var(--text3);">há 1d</td>
+            <td><span class="chip chip-red">Expirado</span></td>
+            <td><div class="action-icons">
+              <div class="icon-btn" title="Reenviar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 1 0 .49-3.12"/></svg></div>
+              <div class="icon-btn danger" title="Remover"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6"/></svg></div>
+            </div></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Confirmed speakers -->
+    <div class="list-card">
+      <div class="list-header">
+        <div class="list-title">
+          Palestrantes confirmados
+          <span class="count-badge">7</span>
+        </div>
+      </div>
+      <div class="speakers-list">
+        <div class="speaker-item">
+          <div class="sp-avatar">RA</div>
+          <div class="sp-info">
+            <div class="sp-name">Rafael Andrade</div>
+            <div class="sp-lecture">IA Generativa na Prática</div>
+          </div>
+          <span class="chip chip-green">Ativo</span>
+        </div>
+        <div class="speaker-item">
+          <div class="sp-avatar">CM</div>
+          <div class="sp-info">
+            <div class="sp-name">Carla Mendes</div>
+            <div class="sp-lecture">DevOps em 2025</div>
+          </div>
+          <span class="chip chip-green">Ativo</span>
+        </div>
+        <div class="speaker-item">
+          <div class="sp-avatar">LS</div>
+          <div class="sp-info">
+            <div class="sp-name">Luísa Souza</div>
+            <div class="sp-lecture">UX Research Avançado</div>
+          </div>
+          <span class="chip chip-green">Ativo</span>
+        </div>
+        <div class="speaker-item">
+          <div class="sp-avatar">TM</div>
+          <div class="sp-info">
+            <div class="sp-name">Thiago Melo</div>
+            <div class="sp-lecture">Produto e Estratégia</div>
+          </div>
+          <span class="chip chip-green">Ativo</span>
+        </div>
+        <div class="speaker-item">
+          <div class="sp-avatar">AG</div>
+          <div class="sp-info">
+            <div class="sp-name">Ana Gomes</div>
+            <div class="sp-lecture">Liderança Técnica</div>
+          </div>
+          <span class="chip chip-green">Ativo</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+function addEmail() {
+  const input = document.getElementById('emailInput');
+  const val = input.value.trim();
+  if (!val || !val.includes('@')) return;
+  const area = document.getElementById('tagsArea');
+  const tag = document.createElement('div');
+  tag.className = 'email-tag';
+  tag.innerHTML = `${val} <span class="tag-remove" onclick="removeTag(this)">×</span>`;
+  area.appendChild(tag);
+  input.value = '';
+  input.focus();
+}
+function removeTag(el) { el.parentElement.remove(); }
+document.getElementById('emailInput').addEventListener('keydown', e => { if(e.key==='Enter') addEmail(); });
+</script>
+</body>
+</html>

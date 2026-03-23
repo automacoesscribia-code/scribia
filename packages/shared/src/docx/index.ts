@@ -1,0 +1,1 @@
+export { ScribiaDocxBuilder } from './builder'

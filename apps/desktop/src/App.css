@@ -1,0 +1,645 @@
+/* ─── ScribIA Desktop Design System ─── */
+
+:root {
+  /* Brand */
+  --purple: #6B4EFF;
+  --purple-light: #8B71FF;
+  --purple-dark: #4A35CC;
+  --purple-dim: rgba(107,78,255,0.12);
+  --purple-glow: rgba(107,78,255,0.25);
+
+  /* Semantic */
+  --green: #00D4A0;
+  --yellow: #FFB830;
+  --red: #FF4D6A;
+  --teal: #00C6D4;
+
+  /* Backgrounds */
+  --bg: #0A0A0F;
+  --bg2: #111118;
+  --bg3: #17171F;
+  --bg4: #1E1E28;
+
+  /* Text */
+  --text: #F0EFF8;
+  --text2: #9896B0;
+  --text3: #5C5A72;
+
+  /* Borders */
+  --border: rgba(255,255,255,0.07);
+  --border-purple: rgba(107,78,255,0.35);
+
+  /* Fonts */
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--text);
+  background-color: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ─── Typography ─── */
+
+.font-heading {
+  font-family: 'Syne', sans-serif;
+}
+
+.font-mono {
+  font-family: 'DM Mono', monospace;
+}
+
+/* ─── Buttons ─── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  outline: none;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--purple);
+  color: #fff;
+  box-shadow: 0 4px 20px var(--purple-glow);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--purple-light);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text2);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover:not(:disabled) {
+  border-color: var(--border-purple);
+  color: var(--purple-light);
+}
+
+.btn-danger {
+  background: rgba(255,77,106,0.1);
+  color: var(--red);
+  border: 1px solid rgba(255,77,106,0.25);
+}
+.btn-danger:hover:not(:disabled) {
+  background: rgba(255,77,106,0.2);
+}
+
+.btn-success {
+  background: rgba(0,212,160,0.1);
+  color: var(--green);
+  border: 1px solid rgba(0,212,160,0.3);
+}
+.btn-success:hover:not(:disabled) {
+  background: rgba(0,212,160,0.2);
+}
+
+.btn-warning {
+  background: rgba(255,184,48,0.1);
+  color: var(--yellow);
+  border: 1px solid rgba(255,184,48,0.25);
+}
+.btn-warning:hover:not(:disabled) {
+  background: rgba(255,184,48,0.2);
+}
+
+.btn-rec {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--purple);
+  color: #fff;
+  border: none;
+  box-shadow: 0 0 24px var(--purple-glow);
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-rec:hover {
+  background: var(--purple-light);
+}
+
+.btn-ctrl {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 18px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text2);
+}
+.btn-ctrl:hover {
+  border-color: var(--border-purple);
+  color: var(--purple-light);
+}
+
+.btn-sm {
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--text3);
+  font-size: 13px;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  transition: color 0.15s;
+  padding: 0;
+}
+.btn-link:hover {
+  color: var(--purple-light);
+}
+
+/* ─── Inputs ─── */
+
+.input {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+  transition: all 0.15s;
+}
+
+.input:focus {
+  border-color: var(--border-purple);
+  box-shadow: 0 0 0 3px var(--purple-dim);
+}
+
+.input::placeholder {
+  color: var(--text3);
+}
+
+.select {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+  transition: all 0.15s;
+  cursor: pointer;
+  min-width: 280px;
+}
+
+.select:focus {
+  border-color: var(--border-purple);
+  box-shadow: 0 0 0 3px var(--purple-dim);
+}
+
+.label {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 6px;
+}
+
+/* ─── Cards ─── */
+
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.card:hover {
+  border-color: var(--border-purple);
+}
+
+.card-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.card-body {
+  padding: 14px 18px;
+}
+
+/* ─── Chips ─── */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.chip::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.chip-green { background: rgba(0,212,160,0.1); color: var(--green); }
+.chip-yellow { background: rgba(255,184,48,0.12); color: var(--yellow); }
+.chip-red { background: rgba(255,77,106,0.1); color: var(--red); }
+.chip-purple { background: var(--purple-dim); color: var(--purple-light); }
+
+/* ─── Window Chrome ─── */
+
+.window-chrome {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  -webkit-app-region: drag;
+}
+
+.traffic-lights {
+  display: flex;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.tl {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.tl-red { background: #FF5F57; }
+.tl-yellow { background: #FEBC2E; }
+.tl-green { background: #28C840; }
+
+.window-title {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text3);
+  font-family: 'DM Mono', monospace;
+}
+
+/* ─── Top Bar ─── */
+
+.topbar {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--purple-light);
+  letter-spacing: -0.3px;
+}
+
+.event-info {
+  text-align: center;
+}
+
+.event-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.event-sub {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 1px;
+}
+
+.status-dot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--green);
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* ─── Timer ─── */
+
+.timer-display {
+  text-align: center;
+  padding: 28px 0 20px;
+}
+
+.rec-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,77,106,0.1);
+  border: 1px solid rgba(255,77,106,0.25);
+  padding: 5px 14px;
+  border-radius: 20px;
+  margin-bottom: 16px;
+}
+
+.rec-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.rec-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--red);
+  letter-spacing: 1px;
+}
+
+.timer {
+  font-family: 'DM Mono', monospace;
+  font-size: 56px;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: -2px;
+}
+
+.timer-sub {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 4px;
+}
+
+/* ─── VU Meter / Waveform ─── */
+
+.waveform-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.waveform-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 100%, rgba(107,78,255,0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.vu-meter {
+  width: 100%;
+  height: 6px;
+  background: var(--bg4);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.vu-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.15s, background 0.3s;
+}
+
+/* ─── Device Selector ─── */
+
+.device-row {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.device-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--purple-dim);
+  border: 1px solid var(--border-purple);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+}
+
+.device-info { flex: 1; }
+.device-name { font-size: 13px; font-weight: 500; color: var(--text); }
+.device-sub { font-size: 11px; color: var(--text3); margin-top: 1px; }
+
+/* ─── Status Pills ─── */
+
+.status-row {
+  display: flex;
+  gap: 8px;
+}
+
+.status-pill {
+  flex: 1;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sp-label { font-size: 11px; color: var(--text3); }
+.sp-value { font-size: 12px; font-weight: 500; margin-top: 1px; }
+.sp-ok { color: var(--green); }
+.sp-warn { color: var(--yellow); }
+
+/* ─── Controls ─── */
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+/* ─── Right Panel ─── */
+
+.info-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.info-card-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.info-row {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.info-row:last-child { border-bottom: none; }
+.info-row-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; }
+.info-row-value { font-size: 13px; color: var(--text); font-weight: 500; margin-top: 2px; }
+
+/* ─── Upload Progress ─── */
+
+.upload-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.upload-bar {
+  height: 3px;
+  background: var(--bg4);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.upload-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--purple), var(--green));
+  border-radius: 2px;
+  transition: width 0.5s;
+}
+
+/* ─── Log ─── */
+
+.log-body {
+  padding: 12px;
+  font-family: 'DM Mono', monospace;
+  font-size: 10.5px;
+  color: var(--text3);
+  line-height: 1.7;
+}
+
+.log-line { display: flex; gap: 8px; }
+.log-time { color: var(--text3); flex-shrink: 0; }
+.log-ok { color: var(--green); }
+.log-info { color: var(--purple-light); }
+.log-warn { color: var(--yellow); }
+.log-error { color: var(--red); }
+
+/* ─── Avatar ─── */
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--purple-dim);
+  border: 1px solid var(--border-purple);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  color: var(--purple-light);
+}
+
+/* ─── Animations ─── */
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.85); }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.4s ease both;
+}
+
+/* ─── Scrollbar ─── */
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* ─── Error ─── */
+
+.error-msg {
+  background: rgba(255,77,106,0.08);
+  border: 1px solid rgba(255,77,106,0.2);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--red);
+  margin-bottom: 12px;
+}
