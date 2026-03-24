@@ -1,5 +1,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { GoogleGenerativeAI } from 'https://esm.sh/@google/generative-ai@0.24.0'
+import {
+  parsePlaceholders,
+  generateEbookImages,
+  replacePlaceholdersWithUrls,
+  type EbookImageContext,
+} from '../_shared/ebook-images.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,6 +15,126 @@ const corsHeaders = {
 interface ProcessRequest {
   lecture_id: string
   steps?: ('transcribe' | 'summarize' | 'ebook' | 'playbook')[]
+}
+
+// Default prompts (used when DB prompts are not available)
+const DEFAULT_PROMPTS: Record<string, string> = {
+  summary: `Analise esta transcrição de palestra e gere:
+
+1. Um resumo de 3-5 parágrafos
+2. Uma lista de 5-10 tópicos principais abordados
+
+Título da palestra: {{title}}
+
+Transcrição:
+{{transcript}}
+
+Responda em JSON com o formato:
+{
+  "summary": "resumo aqui...",
+  "topics": ["tópico 1", "tópico 2", ...]
+}`,
+  ebook: `Você é um editor profissional de e-books educacionais. Crie um e-book baseado EXCLUSIVAMENTE no conteúdo da transcrição abaixo. NÃO invente informações, dados ou citações que não estejam na transcrição.
+
+## Dados da palestra
+- **Título:** {{title}}
+- **Palestrante:** {{speaker}}
+- **Evento:** {{event}}
+- **Resumo:** {{summary}}
+- **Tópicos:** {{topics}}
+
+## Transcrição completa
+{{transcript}}
+
+## Instruções de geração
+
+Gere um e-book em Markdown seguindo EXATAMENTE esta estrutura:
+
+### 1. CAPA (obrigatória)
+\`\`\`
+# {{título do ebook}}
+
+**Por:** {{speaker}}
+**Evento:** {{event}}
+**Gerado por:** ScribIA
+
+---
+\`\`\`
+
+### 2. SUMÁRIO
+Liste os capítulos com links âncora Markdown.
+
+### 3. INTRODUÇÃO
+- Contextualize o tema da palestra (2-3 parágrafos)
+- Explique o que o leitor vai aprender
+- Após a introdução, insira: \`<!-- IMAGE: intro | Uma ilustração conceitual sobre [tema principal da palestra] -->\`
+
+### 4. CAPÍTULOS (3-6 capítulos, baseados nos tópicos)
+Para cada capítulo:
+- **Título** como ## heading
+- **Subtítulos** como ### heading para organizar o conteúdo
+- **Conteúdo** expandido a partir da transcrição (NÃO invente)
+- **Citações diretas** do palestrante usando > blockquote quando relevante
+- **Pontos-chave** ao final do capítulo em lista com **negrito**
+- Após cada capítulo, insira: \`<!-- IMAGE: chapter-N | Descrição visual relevante ao conteúdo do capítulo -->\`
+
+### 5. CONCLUSÃO
+- Síntese dos principais aprendizados
+- Próximos passos sugeridos pelo palestrante (se mencionados)
+
+### 6. SOBRE O PALESTRANTE
+- Breve bio baseada APENAS no que foi mencionado na transcrição
+
+## Regras de formatação
+- Use **negrito** para termos e conceitos importantes
+- Use *itálico* para ênfase
+- Use > blockquote para citações diretas do palestrante
+- Use listas (- ou 1.) para enumerar pontos
+- Use --- para separar seções principais
+- Use emojis moderadamente para marcar seções (📌 para pontos-chave, 💡 para insights, 🎯 para objetivos)
+- Tom: profissional, acessível, em português brasileiro
+- Tamanho: 3000-6000 palavras
+
+## Regras de fidelidade
+- NUNCA invente dados, estatísticas ou citações
+- NUNCA adicione informações que não estejam na transcrição
+- Se a transcrição for vaga sobre um ponto, diga "conforme mencionado na palestra" em vez de inventar detalhes
+- Priorize citações diretas do palestrante quando possível`,
+  playbook: `Crie um playbook prático e acionável baseado nesta palestra.
+
+Título: {{title}}
+Palestrante: {{speaker}}
+Resumo: {{summary}}
+
+Transcrição:
+{{transcript}}
+
+Gere um playbook em Markdown com:
+- Título e contexto
+- 5-10 ações práticas com checklists (usando - [ ] para cada item)
+- Para cada ação: descrição, por que é importante, como implementar
+- Métricas de sucesso
+- Timeline sugerida
+
+Use formatação Markdown com checklists interativos.`,
+}
+
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  const CHUNK_SIZE = 8192
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    const chunk = bytes.subarray(i, i + CHUNK_SIZE)
+    binary += String.fromCharCode(...chunk)
+  }
+  return btoa(binary)
+}
+
+function fillTemplate(template: string, vars: Record<string, string>): string {
+  let result = template
+  for (const [key, value] of Object.entries(vars)) {
+    result = result.replaceAll(`{{${key}}}`, value)
+  }
+  return result
 }
 
 Deno.serve(async (req) => {
@@ -53,6 +179,18 @@ Deno.serve(async (req) => {
     const genAI = new GoogleGenerativeAI(geminiKey)
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
+    // Load custom prompts from DB
+    const { data: dbPrompts } = await supabase
+      .from('system_prompts')
+      .select('key, prompt_text')
+
+    const promptMap: Record<string, string> = { ...DEFAULT_PROMPTS }
+    if (dbPrompts) {
+      for (const p of dbPrompts as Array<{ key: string; prompt_text: string }>) {
+        promptMap[p.key] = p.prompt_text
+      }
+    }
+
     // Update status
     await updateLecture(supabase, lecture_id, { status: 'processing', processing_progress: 0 })
 
@@ -77,7 +215,11 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'No audio files found for this lecture' }, 400)
       }
 
-      // Download first chunk for transcription (Gemini can process audio)
+      // Update audio_path if not set
+      await updateLecture(supabase, lecture_id, {
+        audio_path: `${eventId}/${lecture_id}`,
+      })
+
       let fullTranscript = ''
 
       for (let i = 0; i < chunks.length; i++) {
@@ -89,7 +231,7 @@ Deno.serve(async (req) => {
         if (!audioData) continue
 
         const audioBytes = await audioData.arrayBuffer()
-        const base64Audio = btoa(String.fromCharCode(...new Uint8Array(audioBytes)))
+        const base64Audio = uint8ArrayToBase64(new Uint8Array(audioBytes))
 
         const transcribeResult = await model.generateContent([
           {
@@ -121,7 +263,6 @@ Deno.serve(async (req) => {
     if (steps.includes('summarize')) {
       await updateLecture(supabase, lecture_id, { processing_progress: 30 })
 
-      // Re-fetch to get transcript
       const { data: updated } = await supabase
         .from('lectures')
         .select('transcript_text, title')
@@ -132,26 +273,15 @@ Deno.serve(async (req) => {
       if (!transcript) {
         results.summarize = 'skipped - no transcript'
       } else {
+        const summaryPrompt = fillTemplate(promptMap.summary, {
+          title: (updated as { title: string }).title,
+          transcript: transcript.substring(0, 30000),
+        })
+
         const summaryResult = await model.generateContent({
           contents: [{
             role: 'user',
-            parts: [{
-              text: `Analise esta transcrição de palestra e gere:
-
-1. Um resumo de 3-5 parágrafos
-2. Uma lista de 5-10 tópicos principais abordados
-
-Título da palestra: ${(updated as { title: string }).title}
-
-Transcrição:
-${transcript.substring(0, 30000)}
-
-Responda em JSON com o formato:
-{
-  "summary": "resumo aqui...",
-  "topics": ["tópico 1", "tópico 2", ...]
-}`
-            }]
+            parts: [{ text: summaryPrompt }]
           }],
           generationConfig: {
             responseMimeType: 'application/json',
@@ -183,30 +313,19 @@ Responda em JSON com o formato:
 
       const d = forEbook as any
       if (d?.transcript_text) {
+        const ebookPrompt = fillTemplate(promptMap.ebook, {
+          title: d.title ?? '',
+          speaker: d.speakers?.name ?? 'N/A',
+          event: d.events?.name ?? 'N/A',
+          summary: d.summary ?? '',
+          topics: (d.topics ?? []).join(', '),
+          transcript: d.transcript_text.substring(0, 30000),
+        })
+
         const ebookResult = await model.generateContent({
           contents: [{
             role: 'user',
-            parts: [{
-              text: `Crie um e-book educacional completo baseado nesta palestra.
-
-Título: ${d.title}
-Palestrante: ${d.speakers?.name ?? 'N/A'}
-Evento: ${d.events?.name ?? 'N/A'}
-Resumo: ${d.summary ?? ''}
-Tópicos: ${(d.topics ?? []).join(', ')}
-
-Transcrição completa:
-${d.transcript_text.substring(0, 30000)}
-
-Gere um e-book em Markdown com:
-- Título e autor
-- Introdução
-- Capítulos baseados nos tópicos (3-6 capítulos)
-- Conclusão
-- Pontos-chave de cada capítulo
-
-Use formatação Markdown rica (headers, bold, listas, citações).`
-            }]
+            parts: [{ text: ebookPrompt }]
           }],
           generationConfig: {
             maxOutputTokens: 8192,
@@ -214,23 +333,71 @@ Use formatação Markdown rica (headers, bold, listas, citações).`
           },
         })
 
-        const ebookContent = ebookResult.response.text()
+        let ebookContent = ebookResult.response.text()
 
-        // Save as markdown file in storage
+        await updateLecture(supabase, lecture_id, { processing_progress: 65 })
+
+        // ── Generate ebook images from placeholders ──
+        const imageCtx: EbookImageContext = {
+          title: d.title ?? '',
+          speaker: d.speakers?.name ?? 'N/A',
+          event: d.events?.name ?? 'N/A',
+          summary: d.summary ?? '',
+        }
+
+        const placeholders = parsePlaceholders(ebookContent)
+
+        // Ensure footer placeholder exists (mandatory branding)
+        const hasFooter = placeholders.some(p => p.type === 'footer')
+        if (!hasFooter) {
+          ebookContent += '\n\n---\n\n<!-- IMAGE: footer | Rodapé ScribIA com logo e tagline -->'
+          placeholders.push({
+            type: 'footer',
+            id: 'footer',
+            description: 'Rodapé ScribIA com logo e tagline',
+            raw: '<!-- IMAGE: footer | Rodapé ScribIA com logo e tagline -->',
+          })
+        }
+
+        const generatedImages = generateEbookImages(imageCtx, placeholders, `${eventId}/${lecture_id}`)
+
+        // Upload each SVG image to storage
+        const urlMap = new Map<string, string>()
+        for (const img of generatedImages) {
+          await supabase.storage
+            .from('materials')
+            .upload(img.storagePath, new TextEncoder().encode(img.svg), {
+              contentType: 'image/svg+xml; charset=utf-8',
+              upsert: true,
+            })
+
+          // Generate a signed URL (7 days expiry for viewer)
+          const { data: signedData } = await supabase.storage
+            .from('materials')
+            .createSignedUrl(img.storagePath, 60 * 60 * 24 * 7)
+
+          if (signedData?.signedUrl) {
+            urlMap.set(img.placeholder.id, signedData.signedUrl)
+          }
+        }
+
+        // Replace placeholders with actual image URLs
+        ebookContent = replacePlaceholdersWithUrls(ebookContent, generatedImages, urlMap)
+
+        await updateLecture(supabase, lecture_id, { processing_progress: 70 })
+
+        // Save final markdown with embedded image URLs
         const ebookPath = `${eventId}/${lecture_id}/ebook.md`
         await supabase.storage
           .from('materials')
           .upload(ebookPath, new TextEncoder().encode(ebookContent), {
-            contentType: 'text/markdown',
+            contentType: 'text/markdown; charset=utf-8',
             upsert: true,
           })
 
-        const { data: ebookUrl } = await supabase.storage
-          .from('materials')
-          .createSignedUrl(ebookPath, 31536000) // 1 year
-
+        // Store the storage path (NOT signed URL — we generate signed URLs on download)
         await updateLecture(supabase, lecture_id, {
-          ebook_url: ebookUrl?.signedUrl ?? ebookPath,
+          ebook_url: ebookPath,
           processing_progress: 75,
         })
         results.ebook = 'ok'
@@ -251,28 +418,17 @@ Use formatação Markdown rica (headers, bold, listas, citações).`
 
       const p = forPlaybook as any
       if (p?.transcript_text) {
+        const playbookPrompt = fillTemplate(promptMap.playbook, {
+          title: p.title ?? '',
+          speaker: p.speakers?.name ?? 'N/A',
+          summary: p.summary ?? '',
+          transcript: p.transcript_text.substring(0, 25000),
+        })
+
         const playbookResult = await model.generateContent({
           contents: [{
             role: 'user',
-            parts: [{
-              text: `Crie um playbook prático e acionável baseado nesta palestra.
-
-Título: ${p.title}
-Palestrante: ${p.speakers?.name ?? 'N/A'}
-Resumo: ${p.summary ?? ''}
-
-Transcrição:
-${p.transcript_text.substring(0, 25000)}
-
-Gere um playbook em Markdown com:
-- Título e contexto
-- 5-10 ações práticas com checklists (usando - [ ] para cada item)
-- Para cada ação: descrição, por que é importante, como implementar
-- Métricas de sucesso
-- Timeline sugerida
-
-Use formatação Markdown com checklists interativos.`
-            }]
+            parts: [{ text: playbookPrompt }]
           }],
           generationConfig: {
             maxOutputTokens: 4096,
@@ -286,16 +442,13 @@ Use formatação Markdown com checklists interativos.`
         await supabase.storage
           .from('materials')
           .upload(playbookPath, new TextEncoder().encode(playbookContent), {
-            contentType: 'text/markdown',
+            contentType: 'text/markdown; charset=utf-8',
             upsert: true,
           })
 
-        const { data: playbookUrl } = await supabase.storage
-          .from('materials')
-          .createSignedUrl(playbookPath, 31536000)
-
+        // Store the storage path (NOT signed URL)
         await updateLecture(supabase, lecture_id, {
-          playbook_url: playbookUrl?.signedUrl ?? playbookPath,
+          playbook_url: playbookPath,
           processing_progress: 95,
         })
         results.playbook = 'ok'
