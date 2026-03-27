@@ -5,6 +5,68 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const roleLabels: Record<string, string> = {
+  organizer: 'Organizador',
+  participant: 'Participante',
+  speaker: 'Palestrante',
+}
+
+async function sendCredentialsEmail(email: string, password: string, role: string) {
+  const resendKey = Deno.env.get('RESEND_API_KEY')
+  const fromEmail = Deno.env.get('SMTP_FROM_EMAIL') || 'noreply@scribia.app'
+
+  if (!resendKey) {
+    console.warn('RESEND_API_KEY not set — skipping email')
+    return { sent: false, error: 'RESEND_API_KEY not configured' }
+  }
+
+  const roleName = roleLabels[role] || role
+
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${resendKey}`,
+    },
+    body: JSON.stringify({
+      from: `Scribia <${fromEmail}>`,
+      to: [email],
+      subject: `Seu acesso ao Scribia — ${roleName}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
+          <h1 style="color: #7C3AED; font-size: 28px; margin-bottom: 8px;">SCRIBIA</h1>
+          <p style="color: #666; font-size: 14px; margin-bottom: 24px;">Plataforma de eventos e conteudo</p>
+
+          <div style="background: #F8F7FF; border: 1px solid #E9E5FF; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+            <h2 style="color: #333; font-size: 16px; margin: 0 0 16px 0;">Suas credenciais de acesso</h2>
+            <p style="margin: 0 0 8px 0; font-size: 14px; color: #555;">
+              <strong>Email:</strong> ${email}
+            </p>
+            <p style="margin: 0 0 8px 0; font-size: 14px; color: #555;">
+              <strong>Senha:</strong> <code style="background: #EDE9FE; padding: 2px 8px; border-radius: 4px; font-size: 15px;">${password}</code>
+            </p>
+            <p style="margin: 0; font-size: 14px; color: #555;">
+              <strong>Perfil:</strong> ${roleName}
+            </p>
+          </div>
+
+          <p style="color: #888; font-size: 12px;">
+            Voce pode alterar sua senha apos o primeiro login nas configuracoes da sua conta.
+          </p>
+        </div>
+      `,
+    }),
+  })
+
+  if (!res.ok) {
+    const err = await res.text()
+    console.error('Resend error:', err)
+    return { sent: false, error: err }
+  }
+
+  return { sent: true }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -167,6 +229,8 @@ Deno.serve(async (req) => {
     const { data: { users } } = await supabaseAdmin.auth.admin.listUsers()
     const existingUser = users?.find((u: { email?: string }) => u.email === email)
 
+    let isNewUser = false
+
     if (existingUser) {
       // Reset password to default
       const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
@@ -181,8 +245,17 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
+
+      // For existing user + participant with event_id, add to event directly
+      if (event_id && (role === 'participant' || role === 'speaker')) {
+        await supabaseAdmin
+          .from('event_participants')
+          .upsert({ event_id, user_id: existingUser.id }, { onConflict: 'event_id,user_id' })
+      }
     } else {
       // Create new user with default password
+      // NOTE: keep invitation as 'pending' so the DB trigger handle_new_user
+      // can find it and auto-assign role + event_participants
       const { error: createError } = await supabaseAdmin.auth.admin.createUser({
         email,
         password: defaultPassword,
@@ -196,20 +269,30 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
+
+      isNewUser = true
     }
 
-    // Mark invitation as accepted since user is ready to login
+    // Mark invitation as accepted (for new users, trigger already did this but it's idempotent)
     await supabaseAdmin
       .from('invitations')
       .update({ status: 'accepted' })
       .eq('id', invitation.id)
+
+    // Send email with credentials
+    const emailResult = await sendCredentialsEmail(email, defaultPassword, role)
+
+    const emailNote = emailResult.sent
+      ? 'Email enviado com as credenciais.'
+      : 'Email nao enviado (verifique RESEND_API_KEY). Compartilhe as credenciais manualmente.'
 
     return new Response(JSON.stringify({
       success: true,
       invitation_id: invitation.id,
       speaker_id: speakerId,
       default_password: defaultPassword,
-      message: `Usuario pronto! Credenciais: ${email} / ${defaultPassword}`,
+      email_sent: emailResult.sent,
+      message: `Usuario ${isNewUser ? 'criado' : 'atualizado'}! ${emailNote}\nCredenciais: ${email} / ${defaultPassword}`,
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
