@@ -11,13 +11,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Admin client (service_role) — used for all operations
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    // Extract user from JWT (gateway already verified it via verify_jwt: true)
     const authHeader = req.headers.get('authorization') ?? ''
     const token = authHeader.replace('Bearer ', '')
 
@@ -29,7 +27,6 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Verify caller has permission to invite
     const { data: callerProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('roles')
@@ -40,15 +37,13 @@ Deno.serve(async (req) => {
 
     const { email, role, event_id, speaker_name } = await req.json()
 
-    // Validate role
     if (!['organizer', 'participant', 'speaker'].includes(role)) {
-      return new Response(JSON.stringify({ error: 'Role inválida. Use: organizer, participant ou speaker' }), {
+      return new Response(JSON.stringify({ error: 'Role invalida. Use: organizer, participant ou speaker' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    // Authorization checks
     if (role === 'organizer' && !callerRoles.includes('super_admin')) {
       return new Response(JSON.stringify({ error: 'Apenas super_admin pode convidar organizadores' }), {
         status: 403,
@@ -73,14 +68,13 @@ Deno.serve(async (req) => {
         })
       }
       if (!event_id) {
-        return new Response(JSON.stringify({ error: 'event_id é obrigatório para convites de palestrantes' }), {
+        return new Response(JSON.stringify({ error: 'event_id e obrigatorio para convites de palestrantes' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
     }
 
-    // Organizer must own the event (for participant and speaker invites)
     if ((role === 'participant' || role === 'speaker') && event_id) {
       if (callerRoles.includes('organizer') && !callerRoles.includes('super_admin')) {
         const { data: eventOwner } = await supabaseAdmin
@@ -91,7 +85,7 @@ Deno.serve(async (req) => {
           .single()
 
         if (!eventOwner) {
-          return new Response(JSON.stringify({ error: 'Organizador só pode convidar para seus próprios eventos' }), {
+          return new Response(JSON.stringify({ error: 'Organizador so pode convidar para seus proprios eventos' }), {
             status: 403,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           })
@@ -99,13 +93,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Speaker-specific: create speaker record first
     let speakerId: string | null = null
 
     if (role === 'speaker') {
       const speakerDisplayName = speaker_name || email.split('@')[0].replace(/[._]/g, ' ')
 
-      // Check if speaker with this email already exists
       const { data: existingSpeaker } = await supabaseAdmin
         .from('speakers')
         .select('id')
@@ -133,7 +125,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 1. Create invitation record
+    // Delete any previous pending invitations for this email+role to avoid duplicates
+    await supabaseAdmin
+      .from('invitations')
+      .delete()
+      .eq('email', email)
+      .eq('role', role)
+      .eq('status', 'pending')
+
     const invitationRecord: Record<string, unknown> = {
       email,
       role,
@@ -157,18 +156,27 @@ Deno.serve(async (req) => {
       })
     }
 
-    // 2. Invite user via Supabase Auth (sends email automatically)
-    // SITE_URL must be set in Supabase Edge Function secrets for production
     const siteUrl = Deno.env.get('SITE_URL')
     if (!siteUrl) {
-      console.warn('SITE_URL not set — invitation email will contain localhost link. Set SITE_URL in Edge Function secrets.')
+      console.warn('SITE_URL not set — using localhost. Set SITE_URL in Edge Function secrets for production.')
     }
     const redirectBase = siteUrl || 'http://localhost:3000'
+    const redirectTo = `${redirectBase}/auth/set-password?token=${invitation.token}`
 
+    // Check if user already exists in auth
+    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
+    const existingUser = existingUsers?.users?.find((u: { email?: string }) => u.email === email)
+
+    if (existingUser) {
+      // User exists in auth — delete and re-create to send fresh invite email
+      await supabaseAdmin.auth.admin.deleteUser(existingUser.id)
+    }
+
+    // Send invite (creates user + sends email)
     const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
       email,
       {
-        redirectTo: `${redirectBase}/auth/set-password?token=${invitation.token}`,
+        redirectTo,
         data: {
           full_name: role === 'speaker' ? (speaker_name || '') : '',
           role: role,
@@ -178,45 +186,7 @@ Deno.serve(async (req) => {
     )
 
     if (inviteError) {
-      // User already exists in auth — try generating a magic link instead
-      if (inviteError.message?.includes('already been registered') ||
-          inviteError.message?.includes('already exists') ||
-          inviteError.message?.includes('already been invited')) {
-
-        // Try to send a magic link so user can still set their password
-        const { error: magicError } = await supabaseAdmin.auth.admin.generateLink({
-          type: 'magiclink',
-          email,
-          options: {
-            redirectTo: `${redirectBase}/auth/set-password?token=${invitation.token}`,
-          },
-        })
-
-        if (magicError) {
-          // Still return success — the invitation record was created
-          return new Response(JSON.stringify({
-            success: true,
-            invitation_id: invitation.id,
-            speaker_id: speakerId,
-            message: `Usuario ja existe. Convite criado — pode entrar com credenciais existentes.`,
-          }), {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          })
-        }
-
-        return new Response(JSON.stringify({
-          success: true,
-          invitation_id: invitation.id,
-          speaker_id: speakerId,
-          message: `Email reenviado para ${email}`,
-        }), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-
-      return new Response(JSON.stringify({ error: inviteError.message }), {
+      return new Response(JSON.stringify({ error: `Erro ao enviar convite: ${inviteError.message}` }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
