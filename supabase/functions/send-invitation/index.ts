@@ -156,103 +156,60 @@ Deno.serve(async (req) => {
       })
     }
 
-    const siteUrl = Deno.env.get('SITE_URL') || Deno.env.get('APP_URL')
-    if (!siteUrl) {
-      console.warn('SITE_URL not set — using localhost. Set SITE_URL in Edge Function secrets for production.')
+    const defaultPassword = 'Scribia@2026'
+    const userMetadata = {
+      full_name: role === 'speaker' ? (speaker_name || '') : '',
+      role: role,
+      invitation_token: invitation.token,
     }
-    const redirectBase = siteUrl || 'http://localhost:3000'
-    const redirectTo = `${redirectBase}/auth/set-password?token=${invitation.token}`
 
-    // Send invite (creates user + sends email)
-    const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-      email,
-      {
-        redirectTo,
-        data: {
-          full_name: role === 'speaker' ? (speaker_name || '') : '',
-          role: role,
-          invitation_token: invitation.token,
-        },
-      },
-    )
+    // Check if user already exists in auth
+    const { data: { users } } = await supabaseAdmin.auth.admin.listUsers()
+    const existingUser = users?.find((u: { email?: string }) => u.email === email)
 
-    if (inviteError) {
-      // User already exists — reset password to default so admin can share credentials
-      if (
-        inviteError.message?.includes('already been registered') ||
-        inviteError.message?.includes('already exists') ||
-        inviteError.message?.includes('already been invited')
-      ) {
-        const defaultPassword = 'Scribia@2026'
+    if (existingUser) {
+      // Reset password to default
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+        password: defaultPassword,
+        email_confirm: true,
+        user_metadata: { ...existingUser.user_metadata, ...userMetadata },
+      })
 
-        // Find existing user and reset their password
-        const { data: { users } } = await supabaseAdmin.auth.admin.listUsers()
-        const existingUser = users?.find((u: { email?: string }) => u.email === email)
-
-        if (existingUser) {
-          await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
-            password: defaultPassword,
-            user_metadata: {
-              ...existingUser.user_metadata,
-              role: role,
-              invitation_token: invitation.token,
-            },
-          })
-
-          return new Response(JSON.stringify({
-            success: true,
-            invitation_id: invitation.id,
-            speaker_id: speakerId,
-            default_password: defaultPassword,
-            message: `Usuario ja existe. Senha redefinida para a padrao. Informe as credenciais: ${email} / ${defaultPassword}`,
-          }), {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          })
-        }
-
-        // User not found in list but invite failed — create fresh
-        const { error: createError } = await supabaseAdmin.auth.admin.createUser({
-          email,
-          password: defaultPassword,
-          email_confirm: true,
-          user_metadata: {
-            full_name: role === 'speaker' ? (speaker_name || '') : '',
-            role: role,
-            invitation_token: invitation.token,
-          },
-        })
-
-        if (createError) {
-          return new Response(JSON.stringify({ error: `Erro ao criar usuario: ${createError.message}` }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          })
-        }
-
-        return new Response(JSON.stringify({
-          success: true,
-          invitation_id: invitation.id,
-          speaker_id: speakerId,
-          default_password: defaultPassword,
-          message: `Usuario criado com senha padrao. Informe as credenciais: ${email} / ${defaultPassword}`,
-        }), {
-          status: 200,
+      if (updateError) {
+        return new Response(JSON.stringify({ error: `Erro ao atualizar usuario: ${updateError.message}` }), {
+          status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
-
-      return new Response(JSON.stringify({ error: `Erro ao enviar convite: ${inviteError.message}` }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    } else {
+      // Create new user with default password
+      const { error: createError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password: defaultPassword,
+        email_confirm: true,
+        user_metadata: userMetadata,
       })
+
+      if (createError) {
+        return new Response(JSON.stringify({ error: `Erro ao criar usuario: ${createError.message}` }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
     }
+
+    // Mark invitation as accepted since user is ready to login
+    await supabaseAdmin
+      .from('invitations')
+      .update({ status: 'accepted' })
+      .eq('id', invitation.id)
 
     return new Response(JSON.stringify({
       success: true,
       invitation_id: invitation.id,
       speaker_id: speakerId,
-      message: `Email de convite enviado para ${email}`,
+      default_password: defaultPassword,
+      message: `Usuario pronto! Credenciais: ${email} / ${defaultPassword}`,
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
