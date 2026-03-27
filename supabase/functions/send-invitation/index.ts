@@ -134,15 +134,19 @@ Deno.serve(async (req) => {
     }
 
     // 1. Create invitation record
+    const invitationRecord: Record<string, unknown> = {
+      email,
+      role,
+      invited_by: user.id,
+      event_id: event_id || null,
+    }
+    if (speakerId) {
+      invitationRecord.speaker_id = speakerId
+    }
+
     const { data: invitation, error: invError } = await supabaseAdmin
       .from('invitations')
-      .insert({
-        email,
-        role,
-        invited_by: user.id,
-        event_id: event_id || null,
-        speaker_id: speakerId,
-      })
+      .insert(invitationRecord)
       .select('id, token')
       .single()
 

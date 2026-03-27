@@ -2,6 +2,7 @@
 // Uses AI Provider (Gemini default, configurable via AI_PROVIDER)
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { callAIProvider } from '../_shared/ai-provider.ts'
 
 const MAX_RETRIES = 3
 const BACKOFF_BASE = 5000
@@ -51,7 +52,7 @@ ${lecture.transcript_text.slice(0, 100000)}`
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        const text = await callAIProvider(prompt)
+        const text = await callAIProvider(prompt, { temperature: 0.3, maxTokens: 4096, jsonMode: true })
         const jsonMatch = text.match(/\{[\s\S]*\}/)
         if (!jsonMatch) throw new Error('No JSON found in response')
         result = JSON.parse(jsonMatch[0])
@@ -87,48 +88,3 @@ ${lecture.transcript_text.slice(0, 100000)}`
   }
 })
 
-async function callAIProvider(prompt: string): Promise<string> {
-  const provider = Deno.env.get('AI_PROVIDER') || 'gemini'
-
-  if (provider === 'gemini') {
-    const apiKey = Deno.env.get('GEMINI_API_KEY')
-    if (!apiKey) throw new Error('Missing GEMINI_API_KEY')
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.3, responseMimeType: 'application/json' },
-        }),
-      },
-    )
-    const data = await response.json()
-    return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-  }
-
-  if (provider === 'claude') {
-    const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
-    if (!apiKey) throw new Error('Missing ANTHROPIC_API_KEY')
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: Deno.env.get('CLAUDE_MODEL') || 'claude-sonnet-4-6',
-        max_tokens: 4096,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    })
-    const data = await response.json()
-    return data.content?.[0]?.text ?? ''
-  }
-
-  throw new Error(`Unknown AI_PROVIDER: ${provider}`)
-}

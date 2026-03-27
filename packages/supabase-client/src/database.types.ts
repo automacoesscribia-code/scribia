@@ -128,7 +128,9 @@ export interface Database {
           summary: string | null
           topics: string[] | null
           ebook_url: string | null
+          ebook_content: string | null
           playbook_url: string | null
+          playbook_content: string | null
           card_image_url: string | null
           processing_progress: number
           created_at: string
@@ -149,7 +151,9 @@ export interface Database {
           summary?: string | null
           topics?: string[] | null
           ebook_url?: string | null
+          ebook_content?: string | null
           playbook_url?: string | null
+          playbook_content?: string | null
           card_image_url?: string | null
           processing_progress?: number
           created_at?: string
@@ -169,7 +173,9 @@ export interface Database {
           summary?: string | null
           topics?: string[] | null
           ebook_url?: string | null
+          ebook_content?: string | null
           playbook_url?: string | null
+          playbook_content?: string | null
           card_image_url?: string | null
           processing_progress?: number
           updated_at?: string
@@ -250,7 +256,6 @@ export interface Database {
           updated_at?: string
         }
       }
-    }
       invitations: {
         Row: {
           id: string
@@ -291,15 +296,79 @@ export interface Database {
           updated_at?: string
         }
       }
+      ai_settings: {
+        Row: {
+          id: string
+          provider: 'gemini' | 'openai' | 'anthropic'
+          api_key: string
+          model: string
+          updated_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          provider?: 'gemini' | 'openai' | 'anthropic'
+          api_key?: string
+          model?: string
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          provider?: 'gemini' | 'openai' | 'anthropic'
+          api_key?: string
+          model?: string
+          updated_by?: string | null
+          updated_at?: string
+        }
+      }
+      system_prompts: {
+        Row: {
+          id: string
+          key: string
+          name: string
+          description: string | null
+          prompt_text: string
+          updated_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          key: string
+          name: string
+          description?: string | null
+          prompt_text: string
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          key?: string
+          name?: string
+          description?: string | null
+          prompt_text?: string
+          updated_by?: string | null
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_super_admin: {
+        Args: Record<string, never>
+        Returns: boolean
+      }
+      get_user_role: {
+        Args: Record<string, never>
+        Returns: string
+      }
     }
     Enums: {
-      user_role: 'super_admin' | 'organizer' | 'participant' | 'speaker'
+      user_role: 'super_admin' | 'organizer' | 'participant'
     }
   }
 }

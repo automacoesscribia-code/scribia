@@ -208,16 +208,58 @@ export function RecordingSession({ eventId, lectureId, lectureTitle, eventName, 
       clearInterval(progressInterval)
 
       if (result.success) {
-        setDeployProgress(100)
+        setDeployProgress(95)
         setDeployStatus('published')
         addLog(`Deploy concluído — ${result.chunks_uploaded} chunks (${formatBytes(result.total_bytes)})`, 'ok')
 
-        // Update lecture status in database to trigger processing pipeline
+        // Update lecture with audio info and set status to processing
+        const audioStoragePath = `${eventId}/${lectureId}`
         await supabase
           .from('lectures')
-          .update({ status: 'processing' } as never)
+          .update({
+            status: 'processing',
+            audio_path: audioStoragePath,
+            audio_duration_seconds: duration,
+            processing_progress: 0,
+          } as never)
           .eq('id', lectureId)
 
+        addLog('Metadados do áudio salvos na palestra', 'ok')
+
+        // Auto-trigger processing pipeline
+        try {
+          const { data: { session: currentSession } } = await supabase.auth.getSession()
+          if (currentSession) {
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+            addLog('Iniciando processamento com IA...', 'info')
+
+            fetch(`${supabaseUrl}/functions/v1/process-lecture`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${currentSession.access_token}`,
+                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                lecture_id: lectureId,
+                steps: ['transcribe', 'summarize', 'ebook', 'playbook'],
+              }),
+            }).then(async (res) => {
+              if (res.ok) {
+                addLog('Processamento concluído com sucesso!', 'ok')
+              } else {
+                const body = await res.json().catch(() => ({}))
+                addLog(`Processamento retornou erro: ${body.error ?? res.status}`, 'warn')
+              }
+            }).catch((e) => {
+              addLog(`Erro ao chamar processamento: ${e}`, 'warn')
+            })
+          }
+        } catch {
+          addLog('Processamento será feito pelo painel web', 'info')
+        }
+
+        setDeployProgress(100)
         addLog('Status atualizado: processamento iniciado', 'ok')
       } else {
         setDeployStatus('error')

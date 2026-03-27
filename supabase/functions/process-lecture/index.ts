@@ -6,6 +6,7 @@ import {
   replacePlaceholdersWithUrls,
   type EbookImageContext,
 } from '../_shared/ebook-images.ts'
+import { generatePdfFromMarkdown } from '../_shared/pdf-generator.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -91,8 +92,8 @@ Para cada capítulo:
 - Use > blockquote para citações diretas do palestrante
 - Use listas (- ou 1.) para enumerar pontos
 - Use --- para separar seções principais
-- Use emojis moderadamente para marcar seções (📌 para pontos-chave, 💡 para insights, 🎯 para objetivos)
-- Tom: profissional, acessível, em português brasileiro
+- NAO use emojis no texto (o PDF nao suporta emojis)
+- Tom: profissional, acessivel, em portugues brasileiro
 - Tamanho: 3000-6000 palavras
 
 ## Regras de fidelidade
@@ -395,9 +396,26 @@ Deno.serve(async (req) => {
             upsert: true,
           })
 
-        // Store the storage path (NOT signed URL — we generate signed URLs on download)
+        // Generate PDF from markdown content
+        const ebookPdfBytes = await generatePdfFromMarkdown(ebookContent, {
+          title: d.title ?? '',
+          subtitle: `por ${d.speakers?.name ?? 'N/A'}`,
+          event: d.events?.name ?? '',
+          type: 'ebook',
+        })
+
+        const ebookPdfPath = `${eventId}/${lecture_id}/ebook.pdf`
+        await supabase.storage
+          .from('materials')
+          .upload(ebookPdfPath, ebookPdfBytes, {
+            contentType: 'application/pdf',
+            upsert: true,
+          })
+
+        // Store PDF path as primary URL (used for downloads)
         await updateLecture(supabase, lecture_id, {
-          ebook_url: ebookPath,
+          ebook_url: ebookPdfPath,
+          ebook_content: ebookContent,
           processing_progress: 75,
         })
         results.ebook = 'ok'
@@ -438,17 +456,34 @@ Deno.serve(async (req) => {
 
         const playbookContent = playbookResult.response.text()
 
-        const playbookPath = `${eventId}/${lecture_id}/playbook.md`
+        // Save markdown version
+        const playbookMdPath = `${eventId}/${lecture_id}/playbook.md`
         await supabase.storage
           .from('materials')
-          .upload(playbookPath, new TextEncoder().encode(playbookContent), {
+          .upload(playbookMdPath, new TextEncoder().encode(playbookContent), {
             contentType: 'text/markdown; charset=utf-8',
             upsert: true,
           })
 
-        // Store the storage path (NOT signed URL)
+        // Generate PDF from markdown
+        const playbookPdfBytes = await generatePdfFromMarkdown(playbookContent, {
+          title: `Playbook: ${p.title ?? ''}`,
+          subtitle: `por ${p.speakers?.name ?? 'N/A'}`,
+          type: 'playbook',
+        })
+
+        const playbookPdfPath = `${eventId}/${lecture_id}/playbook.pdf`
+        await supabase.storage
+          .from('materials')
+          .upload(playbookPdfPath, playbookPdfBytes, {
+            contentType: 'application/pdf',
+            upsert: true,
+          })
+
+        // Store PDF path as primary URL
         await updateLecture(supabase, lecture_id, {
-          playbook_url: playbookPath,
+          playbook_url: playbookPdfPath,
+          playbook_content: playbookContent,
           processing_progress: 95,
         })
         results.playbook = 'ok'
