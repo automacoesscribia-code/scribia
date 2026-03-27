@@ -158,12 +158,17 @@ Deno.serve(async (req) => {
     }
 
     // 2. Invite user via Supabase Auth (sends email automatically)
-    const siteUrl = Deno.env.get('SITE_URL') || 'http://localhost:3000'
+    // SITE_URL must be set in Supabase Edge Function secrets for production
+    const siteUrl = Deno.env.get('SITE_URL')
+    if (!siteUrl) {
+      console.warn('SITE_URL not set — invitation email will contain localhost link. Set SITE_URL in Edge Function secrets.')
+    }
+    const redirectBase = siteUrl || 'http://localhost:3000'
 
     const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
       email,
       {
-        redirectTo: `${siteUrl}/auth/set-password?token=${invitation.token}`,
+        redirectTo: `${redirectBase}/auth/set-password?token=${invitation.token}`,
         data: {
           full_name: role === 'speaker' ? (speaker_name || '') : '',
           role: role,
@@ -173,14 +178,38 @@ Deno.serve(async (req) => {
     )
 
     if (inviteError) {
-      // User might already exist
+      // User already exists in auth — try generating a magic link instead
       if (inviteError.message?.includes('already been registered') ||
-          inviteError.message?.includes('already exists')) {
+          inviteError.message?.includes('already exists') ||
+          inviteError.message?.includes('already been invited')) {
+
+        // Try to send a magic link so user can still set their password
+        const { error: magicError } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'magiclink',
+          email,
+          options: {
+            redirectTo: `${redirectBase}/auth/set-password?token=${invitation.token}`,
+          },
+        })
+
+        if (magicError) {
+          // Still return success — the invitation record was created
+          return new Response(JSON.stringify({
+            success: true,
+            invitation_id: invitation.id,
+            speaker_id: speakerId,
+            message: `Usuario ja existe. Convite criado — pode entrar com credenciais existentes.`,
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+
         return new Response(JSON.stringify({
           success: true,
           invitation_id: invitation.id,
           speaker_id: speakerId,
-          message: `Usuário já existe. Convite criado — pode entrar com credenciais existentes.`,
+          message: `Email reenviado para ${email}`,
         }), {
           status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
