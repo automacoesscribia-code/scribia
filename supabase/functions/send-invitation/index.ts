@@ -11,70 +11,15 @@ const roleLabels: Record<string, string> = {
   speaker: 'Palestrante',
 }
 
-async function sendCredentialsEmail(email: string, password: string, role: string) {
-  const resendKey = Deno.env.get('RESEND_API_KEY')
-  const fromEmail = Deno.env.get('SMTP_FROM_EMAIL') || 'noreply@scribia.app'
-
-  if (!resendKey) {
-    console.warn('RESEND_API_KEY not set — skipping email')
-    return { sent: false, error: 'RESEND_API_KEY not configured' }
-  }
-
-  const roleName = roleLabels[role] || role
-
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${resendKey}`,
-    },
-    body: JSON.stringify({
-      from: `Scribia <${fromEmail}>`,
-      to: [email],
-      subject: `Seu acesso ao Scribia — ${roleName}`,
-      html: `
-        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
-          <h1 style="color: #7C3AED; font-size: 28px; margin-bottom: 8px;">SCRIBIA</h1>
-          <p style="color: #666; font-size: 14px; margin-bottom: 24px;">Plataforma de eventos e conteudo</p>
-
-          <div style="background: #F8F7FF; border: 1px solid #E9E5FF; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
-            <h2 style="color: #333; font-size: 16px; margin: 0 0 16px 0;">Suas credenciais de acesso</h2>
-            <p style="margin: 0 0 8px 0; font-size: 14px; color: #555;">
-              <strong>Email:</strong> ${email}
-            </p>
-            <p style="margin: 0 0 8px 0; font-size: 14px; color: #555;">
-              <strong>Senha:</strong> <code style="background: #EDE9FE; padding: 2px 8px; border-radius: 4px; font-size: 15px;">${password}</code>
-            </p>
-            <p style="margin: 0; font-size: 14px; color: #555;">
-              <strong>Perfil:</strong> ${roleName}
-            </p>
-          </div>
-
-          <p style="color: #888; font-size: 12px;">
-            Voce pode alterar sua senha apos o primeiro login nas configuracoes da sua conta.
-          </p>
-        </div>
-      `,
-    }),
-  })
-
-  if (!res.ok) {
-    const err = await res.text()
-    console.error('Resend error:', err)
-    return { sent: false, error: err }
-  }
-
-  return { sent: true }
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL')!,
+      supabaseUrl,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
@@ -155,6 +100,7 @@ Deno.serve(async (req) => {
       }
     }
 
+    // --- Speaker record ---
     let speakerId: string | null = null
 
     if (role === 'speaker') {
@@ -187,6 +133,7 @@ Deno.serve(async (req) => {
       }
     }
 
+    // --- Invitation record ---
     // Delete any previous pending invitations for this email+role to avoid duplicates
     await supabaseAdmin
       .from('invitations')
@@ -218,24 +165,30 @@ Deno.serve(async (req) => {
       })
     }
 
-    const defaultPassword = 'Scribia@2026'
+    // --- Resolve redirect URL ---
+    const siteUrl = Deno.env.get('SITE_URL') || Deno.env.get('APP_URL') || supabaseUrl
+    const redirectTo = `${siteUrl}/auth/set-password?token=${invitation.token}`
+
+    const roleName = roleLabels[role] || role
     const userMetadata = {
       full_name: role === 'speaker' ? (speaker_name || '') : '',
       role: role,
       invitation_token: invitation.token,
     }
 
-    // Check if user already exists in auth
-    const { data: { users } } = await supabaseAdmin.auth.admin.listUsers()
-    const existingUser = users?.find((u: { email?: string }) => u.email === email)
+    // --- Check if user already exists ---
+    const { data: { users: matchedUsers } } = await supabaseAdmin.auth.admin.listUsers({
+      page: 1,
+      perPage: 1,
+      filter: email,
+    } as never)
+    const existingUser = matchedUsers?.[0] ?? null
 
-    let isNewUser = false
+    let emailSent = false
 
     if (existingUser) {
-      // Reset password to default
+      // --- Existing user: update metadata + add to event ---
       const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
-        password: defaultPassword,
-        email_confirm: true,
         user_metadata: { ...existingUser.user_metadata, ...userMetadata },
       })
 
@@ -246,59 +199,77 @@ Deno.serve(async (req) => {
         })
       }
 
-      // For existing user + participant with event_id, add to event directly
+      // Add to event directly
       if (event_id && (role === 'participant' || role === 'speaker')) {
         await supabaseAdmin
           .from('event_participants')
           .upsert({ event_id, user_id: existingUser.id }, { onConflict: 'event_id,user_id' })
       }
-    } else {
-      // Create new user with default password
-      // NOTE: keep invitation as 'pending' so the DB trigger handle_new_user
-      // can find it and auto-assign role + event_participants
-      const { error: createError } = await supabaseAdmin.auth.admin.createUser({
+
+      // Link speaker record
+      if (role === 'speaker' && speakerId) {
+        await supabaseAdmin
+          .from('speakers')
+          .update({ user_id: existingUser.id })
+          .eq('id', speakerId)
+      }
+
+      // Mark invitation as accepted (user already has account)
+      await supabaseAdmin
+        .from('invitations')
+        .update({ status: 'accepted', accepted_at: new Date().toISOString() })
+        .eq('id', invitation.id)
+
+      // Notify existing user via magic link email (Supabase sends the email)
+      const { error: magicErr } = await supabaseAdmin.auth.signInWithOtp({
         email,
-        password: defaultPassword,
-        email_confirm: true,
-        user_metadata: userMetadata,
+        options: { shouldCreateUser: false, emailRedirectTo: redirectTo },
       })
 
-      if (createError) {
-        return new Response(JSON.stringify({ error: `Erro ao criar usuario: ${createError.message}` }), {
+      if (magicErr) {
+        console.warn(`Magic link email failed for ${email}:`, magicErr.message)
+      } else {
+        emailSent = true
+      }
+
+    } else {
+      // --- New user: invite via Supabase (creates user + sends email) ---
+      // Invitation stays 'pending' so handle_new_user trigger can find it
+      const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+        data: userMetadata,
+        redirectTo,
+      })
+
+      if (inviteError) {
+        return new Response(JSON.stringify({ error: `Erro ao convidar usuario: ${inviteError.message}` }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
 
-      isNewUser = true
+      emailSent = true
+      console.log(`Invite email sent to ${email} as ${roleName} via Supabase Auth`)
     }
 
-    // Mark invitation as accepted (for new users, trigger already did this but it's idempotent)
-    await supabaseAdmin
-      .from('invitations')
-      .update({ status: 'accepted' })
-      .eq('id', invitation.id)
-
-    // Send email with credentials
-    const emailResult = await sendCredentialsEmail(email, defaultPassword, role)
-
-    const emailNote = emailResult.sent
-      ? 'Email enviado com as credenciais.'
-      : 'Email nao enviado (verifique RESEND_API_KEY). Compartilhe as credenciais manualmente.'
+    const isNewUser = !existingUser
+    const emailNote = emailSent
+      ? 'Email de convite enviado pelo Supabase.'
+      : 'Usuario adicionado ao evento (ja possui conta).'
 
     return new Response(JSON.stringify({
       success: true,
       invitation_id: invitation.id,
       speaker_id: speakerId,
-      default_password: defaultPassword,
-      email_sent: emailResult.sent,
-      message: `Usuario ${isNewUser ? 'criado' : 'atualizado'}! ${emailNote}\nCredenciais: ${email} / ${defaultPassword}`,
+      email_sent: emailSent,
+      is_new_user: isNewUser,
+      message: `${roleName} ${isNewUser ? 'convidado' : 'adicionado'}! ${emailNote}`,
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
 
   } catch (err) {
+    console.error('send-invitation error:', err)
     return new Response(JSON.stringify({ error: (err as Error).message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
