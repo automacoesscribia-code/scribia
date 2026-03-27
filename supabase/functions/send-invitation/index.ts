@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
       })
     }
 
-    const siteUrl = Deno.env.get('SITE_URL')
+    const siteUrl = Deno.env.get('SITE_URL') || Deno.env.get('APP_URL')
     if (!siteUrl) {
       console.warn('SITE_URL not set — using localhost. Set SITE_URL in Edge Function secrets for production.')
     }
