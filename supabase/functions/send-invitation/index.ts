@@ -177,29 +177,55 @@ Deno.serve(async (req) => {
     )
 
     if (inviteError) {
-      // User already exists — try magic link instead of deleting
+      // User already exists — reset password to default so admin can share credentials
       if (
         inviteError.message?.includes('already been registered') ||
         inviteError.message?.includes('already exists') ||
         inviteError.message?.includes('already been invited')
       ) {
-        const { error: magicError } = await supabaseAdmin.auth.admin.generateLink({
-          type: 'magiclink',
-          email,
-          options: {
-            redirectTo,
-          },
-        })
+        const defaultPassword = 'Scribia@2026'
 
-        if (magicError) {
-          // Fallback: user exists and can login with existing credentials
+        // Find existing user and reset their password
+        const { data: { users } } = await supabaseAdmin.auth.admin.listUsers()
+        const existingUser = users?.find((u: { email?: string }) => u.email === email)
+
+        if (existingUser) {
+          await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+            password: defaultPassword,
+            user_metadata: {
+              ...existingUser.user_metadata,
+              role: role,
+              invitation_token: invitation.token,
+            },
+          })
+
           return new Response(JSON.stringify({
             success: true,
             invitation_id: invitation.id,
             speaker_id: speakerId,
-            message: `Usuario ja existe. Convite registrado — pode entrar com credenciais existentes.`,
+            default_password: defaultPassword,
+            message: `Usuario ja existe. Senha redefinida para a padrao. Informe as credenciais: ${email} / ${defaultPassword}`,
           }), {
             status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+
+        // User not found in list but invite failed — create fresh
+        const { error: createError } = await supabaseAdmin.auth.admin.createUser({
+          email,
+          password: defaultPassword,
+          email_confirm: true,
+          user_metadata: {
+            full_name: role === 'speaker' ? (speaker_name || '') : '',
+            role: role,
+            invitation_token: invitation.token,
+          },
+        })
+
+        if (createError) {
+          return new Response(JSON.stringify({ error: `Erro ao criar usuario: ${createError.message}` }), {
+            status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           })
         }
@@ -208,7 +234,8 @@ Deno.serve(async (req) => {
           success: true,
           invitation_id: invitation.id,
           speaker_id: speakerId,
-          message: `Email de convite reenviado para ${email}`,
+          default_password: defaultPassword,
+          message: `Usuario criado com senha padrao. Informe as credenciais: ${email} / ${defaultPassword}`,
         }), {
           status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
