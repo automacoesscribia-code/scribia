@@ -163,15 +163,6 @@ Deno.serve(async (req) => {
     const redirectBase = siteUrl || 'http://localhost:3000'
     const redirectTo = `${redirectBase}/auth/set-password?token=${invitation.token}`
 
-    // Check if user already exists in auth
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
-    const existingUser = existingUsers?.users?.find((u: { email?: string }) => u.email === email)
-
-    if (existingUser) {
-      // User exists in auth — delete and re-create to send fresh invite email
-      await supabaseAdmin.auth.admin.deleteUser(existingUser.id)
-    }
-
     // Send invite (creates user + sends email)
     const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
       email,
@@ -186,6 +177,44 @@ Deno.serve(async (req) => {
     )
 
     if (inviteError) {
+      // User already exists — try magic link instead of deleting
+      if (
+        inviteError.message?.includes('already been registered') ||
+        inviteError.message?.includes('already exists') ||
+        inviteError.message?.includes('already been invited')
+      ) {
+        const { error: magicError } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'magiclink',
+          email,
+          options: {
+            redirectTo,
+          },
+        })
+
+        if (magicError) {
+          // Fallback: user exists and can login with existing credentials
+          return new Response(JSON.stringify({
+            success: true,
+            invitation_id: invitation.id,
+            speaker_id: speakerId,
+            message: `Usuario ja existe. Convite registrado — pode entrar com credenciais existentes.`,
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          invitation_id: invitation.id,
+          speaker_id: speakerId,
+          message: `Email de convite reenviado para ${email}`,
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
       return new Response(JSON.stringify({ error: `Erro ao enviar convite: ${inviteError.message}` }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
