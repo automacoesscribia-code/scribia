@@ -42,12 +42,13 @@ export async function POST(request: Request) {
     }
 
     // Accept the invitation
+    const updatePayload: Record<string, unknown> = {
+      status: 'accepted',
+      accepted_at: new Date().toISOString(),
+    }
     const { error: updateError } = await adminClient
       .from('invitations')
-      .update({
-        status: 'accepted' as never,
-        accepted_at: new Date().toISOString() as never,
-      })
+      .update(updatePayload as never)
       .eq('token', token)
       .eq('status', 'pending')
 
