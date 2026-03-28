@@ -35,9 +35,9 @@ export async function POST(request: Request) {
 
     // Call the database function with service role
     const adminClient = createAdminClient()
-    const { data, error } = await adminClient.rpc('delete_user_completely', {
+    const { data, error } = await adminClient.rpc('delete_user_completely' as never, {
       target_user_id: userId,
-    })
+    } as never)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
