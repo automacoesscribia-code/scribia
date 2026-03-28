@@ -1,11 +1,25 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { Suspense, useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Lock, Check, AlertCircle } from 'lucide-react'
 
 export default function SetPasswordPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-bg">
+        <div className="w-full max-w-md bg-bg2 border border-border-subtle rounded-2xl p-8 text-center">
+          <h1 className="font-heading text-xl font-bold text-text">Carregando...</h1>
+        </div>
+      </div>
+    }>
+      <SetPasswordContent />
+    </Suspense>
+  )
+}
+
+function SetPasswordContent() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
