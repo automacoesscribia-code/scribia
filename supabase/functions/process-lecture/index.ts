@@ -396,28 +396,40 @@ Deno.serve(async (req) => {
             upsert: true,
           })
 
-        // Generate PDF from markdown content
-        const ebookPdfBytes = await generatePdfFromMarkdown(ebookContent, {
-          title: d.title ?? '',
-          subtitle: `por ${d.speakers?.name ?? 'N/A'}`,
-          event: d.events?.name ?? '',
-          type: 'ebook',
+        // Save markdown content to DB immediately (so viewer works even if PDF fails)
+        await updateLecture(supabase, lecture_id, {
+          ebook_content: ebookContent,
         })
 
-        const ebookPdfPath = `${eventId}/${lecture_id}/ebook.pdf`
-        await supabase.storage
-          .from('materials')
-          .upload(ebookPdfPath, ebookPdfBytes, {
-            contentType: 'application/pdf',
-            upsert: true,
+        // Generate PDF from markdown content (non-blocking: if it fails, markdown is still available)
+        try {
+          const ebookPdfBytes = await generatePdfFromMarkdown(ebookContent, {
+            title: d.title ?? '',
+            subtitle: `por ${d.speakers?.name ?? 'N/A'}`,
+            event: d.events?.name ?? '',
+            type: 'ebook',
           })
 
-        // Store PDF path as primary URL (used for downloads)
-        await updateLecture(supabase, lecture_id, {
-          ebook_url: ebookPdfPath,
-          ebook_content: ebookContent,
-          processing_progress: 75,
-        })
+          const ebookPdfPath = `${eventId}/${lecture_id}/ebook.pdf`
+          await supabase.storage
+            .from('materials')
+            .upload(ebookPdfPath, ebookPdfBytes, {
+              contentType: 'application/pdf',
+              upsert: true,
+            })
+
+          await updateLecture(supabase, lecture_id, {
+            ebook_url: ebookPdfPath,
+            processing_progress: 75,
+          })
+        } catch (pdfErr) {
+          console.error('Ebook PDF generation failed (markdown saved):', pdfErr)
+          // Use markdown path as fallback URL
+          await updateLecture(supabase, lecture_id, {
+            ebook_url: ebookPath,
+            processing_progress: 75,
+          })
+        }
         results.ebook = 'ok'
       }
     }
@@ -465,27 +477,38 @@ Deno.serve(async (req) => {
             upsert: true,
           })
 
-        // Generate PDF from markdown
-        const playbookPdfBytes = await generatePdfFromMarkdown(playbookContent, {
-          title: `Playbook: ${p.title ?? ''}`,
-          subtitle: `por ${p.speakers?.name ?? 'N/A'}`,
-          type: 'playbook',
+        // Save markdown content to DB immediately
+        await updateLecture(supabase, lecture_id, {
+          playbook_content: playbookContent,
         })
 
-        const playbookPdfPath = `${eventId}/${lecture_id}/playbook.pdf`
-        await supabase.storage
-          .from('materials')
-          .upload(playbookPdfPath, playbookPdfBytes, {
-            contentType: 'application/pdf',
-            upsert: true,
+        // Generate PDF (non-blocking: if it fails, markdown is still available)
+        try {
+          const playbookPdfBytes = await generatePdfFromMarkdown(playbookContent, {
+            title: `Playbook: ${p.title ?? ''}`,
+            subtitle: `por ${p.speakers?.name ?? 'N/A'}`,
+            type: 'playbook',
           })
 
-        // Store PDF path as primary URL
-        await updateLecture(supabase, lecture_id, {
-          playbook_url: playbookPdfPath,
-          playbook_content: playbookContent,
-          processing_progress: 95,
-        })
+          const playbookPdfPath = `${eventId}/${lecture_id}/playbook.pdf`
+          await supabase.storage
+            .from('materials')
+            .upload(playbookPdfPath, playbookPdfBytes, {
+              contentType: 'application/pdf',
+              upsert: true,
+            })
+
+          await updateLecture(supabase, lecture_id, {
+            playbook_url: playbookPdfPath,
+            processing_progress: 95,
+          })
+        } catch (pdfErr) {
+          console.error('Playbook PDF generation failed (markdown saved):', pdfErr)
+          await updateLecture(supabase, lecture_id, {
+            playbook_url: playbookMdPath,
+            processing_progress: 95,
+          })
+        }
         results.playbook = 'ok'
       }
     }
@@ -500,6 +523,17 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('Process error:', err)
+    // Ensure status is updated to failed so it doesn't stay stuck at processing
+    try {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      )
+      const body = await req.clone().json().catch(() => ({}))
+      if (body.lecture_id) {
+        await updateLecture(supabase, body.lecture_id, { status: 'failed' })
+      }
+    } catch { /* best effort */ }
     return jsonResponse({ error: (err as Error).message }, 500)
   }
 })

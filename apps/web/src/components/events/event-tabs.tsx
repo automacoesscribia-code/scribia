@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { LectureStatusBadge } from '@/components/lectures/lecture-status-badge'
@@ -10,7 +10,7 @@ import { ParticipantsTab } from '@/components/participants/participants-tab'
 import type { LectureStatus } from '@scribia/shared'
 import { AnalyticsTab } from '@/components/dashboard/analytics-tab'
 import Link from 'next/link'
-import { Plus, Pencil, Trash2, Radio, RefreshCw } from 'lucide-react'
+import { Plus, Pencil, Trash2, Radio, RefreshCw, Upload, Loader2 } from 'lucide-react'
 
 interface Speaker {
   id: string
@@ -107,6 +107,90 @@ export function EventTabs({ eventId, lectures, speakers: initialSpeakers = [], p
     refresh()
   }
 
+  // --- Audio Upload ---
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const uploadTargetRef = useRef<string | null>(null)
+  const [uploadingLecture, setUploadingLecture] = useState<string | null>(null)
+  const [uploadProgress, setUploadProgress] = useState(0)
+
+  function handleUploadClick(lectureId: string) {
+    uploadTargetRef.current = lectureId
+    fileInputRef.current?.click()
+  }
+
+  async function handleAudioFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    const lectureId = uploadTargetRef.current
+    if (!file || !lectureId) return
+    e.target.value = ''
+
+    const MAX_SIZE_MB = 500
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      alert(`Arquivo muito grande. Máximo: ${MAX_SIZE_MB}MB`)
+      return
+    }
+
+    setUploadingLecture(lectureId)
+    setUploadProgress(10)
+
+    try {
+      const uploadPath = `audio-files/${eventId}/${lectureId}/final.webm`
+      setUploadProgress(30)
+
+      const { error: uploadError } = await supabase.storage
+        .from('audio-files')
+        .upload(uploadPath, file, { contentType: file.type, upsert: true })
+
+      if (uploadError) throw uploadError
+      setUploadProgress(60)
+
+      // Get audio duration
+      const audioDuration = await new Promise<number>((resolve) => {
+        const audio = new Audio()
+        audio.addEventListener('loadedmetadata', () => {
+          resolve(Math.round(audio.duration))
+          URL.revokeObjectURL(audio.src)
+        })
+        audio.addEventListener('error', () => {
+          resolve(Math.round(file.size / 176000))
+          URL.revokeObjectURL(audio.src)
+        })
+        audio.src = URL.createObjectURL(file)
+      })
+
+      await supabase
+        .from('lectures')
+        .update({
+          status: 'processing',
+          audio_path: `${eventId}/${lectureId}`,
+          audio_duration_seconds: audioDuration,
+          processing_progress: 0,
+        } as never)
+        .eq('id', lectureId)
+
+      setUploadProgress(80)
+
+      // Create processing jobs
+      const jobTypes = ['transcription', 'summary', 'ebook', 'playbook', 'card']
+      for (const type of jobTypes) {
+        await supabase
+          .from('processing_jobs')
+          .insert({ lecture_id: lectureId, type, status: 'queued' } as never)
+      }
+
+      setUploadProgress(100)
+      setTimeout(() => {
+        setUploadingLecture(null)
+        setUploadProgress(0)
+        refresh()
+      }, 1500)
+    } catch (err) {
+      alert(`Erro no upload: ${err}`)
+      setUploadingLecture(null)
+      setUploadProgress(0)
+    }
+  }
+
   return (
     <div>
       {/* Tabs */}
@@ -152,55 +236,98 @@ export function EventTabs({ eventId, lectures, speakers: initialSpeakers = [], p
               </div>
             </div>
 
+            {/* Hidden file input for audio upload */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".mp3,.wav,.webm,.m4a,.ogg"
+              className="hidden"
+              onChange={handleAudioFileSelected}
+            />
+
+            {/* Upload progress banner */}
+            {uploadingLecture && (
+              <div className="mb-3 bg-purple-dim border border-border-purple rounded-xl p-3.5">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-[12px] text-purple-light font-medium flex items-center gap-2">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    {uploadProgress < 100 ? 'Enviando áudio...' : 'Upload concluído!'}
+                  </span>
+                  <span className="text-[12px] text-purple-light font-mono">{uploadProgress}%</span>
+                </div>
+                <div className="h-1.5 bg-bg4 rounded-sm overflow-hidden">
+                  <div
+                    className="h-full bg-purple rounded-sm transition-all duration-500"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
             {lectures.length > 0 ? (
               <div className="space-y-2">
-                {lectures.map((lecture) => (
-                  <div
-                    key={lecture.id}
-                    className="flex items-center gap-3 bg-bg2 border border-border-subtle rounded-xl p-3.5 transition-all hover:border-border-purple"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selected.has(lecture.id)}
-                      onChange={() => toggleSelect(lecture.id)}
-                      className="h-4 w-4 rounded border-border-subtle bg-bg3 accent-purple"
-                    />
-                    <Link href={`/dashboard/lectures/${lecture.id}`} className="flex-1 min-w-0 cursor-pointer">
-                      <p className="font-heading font-semibold text-[13px] text-text hover:text-purple-light transition-colors">
-                        {lecture.title}
-                      </p>
-                      <p className="text-[12px] text-text3 mt-0.5">
-                        {lecture.speakers?.name ?? 'Sem palestrante'}
-                        {lecture.scheduled_at && ` — ${new Date(lecture.scheduled_at).toLocaleString('pt-BR')}`}
-                        {lecture.duration_seconds && ` (${Math.round(lecture.duration_seconds / 60)}min)`}
-                      </p>
-                    </Link>
-                    <LectureStatusBadge status={lecture.status as LectureStatus} />
-                    <div className="flex gap-1.5">
-                      <button
-                        onClick={() => { loadSpeakers(); setEditingLecture(lecture); setShowLectureModal(true) }}
-                        className="w-7 h-7 rounded-md bg-bg3 border border-border-subtle flex items-center justify-center text-text2 hover:border-border-purple hover:bg-purple-dim hover:text-purple-light transition-all"
-                        title="Editar"
-                      >
-                        <Pencil className="w-3 h-3" />
-                      </button>
-                      <button
-                        onClick={() => deleteLecture(lecture.id)}
-                        className="w-7 h-7 rounded-md bg-bg3 border border-border-subtle flex items-center justify-center text-text2 hover:border-scribia-red/40 hover:bg-scribia-red/8 hover:text-scribia-red transition-all"
-                        title="Excluir"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                      <a
-                        href={`scribia://capture/${eventId}/${lecture.id}`}
-                        className="w-7 h-7 rounded-md bg-bg3 border border-border-subtle flex items-center justify-center text-text2 hover:border-border-purple hover:bg-purple-dim hover:text-purple-light transition-all"
-                        title="Abrir no desktop para gravação"
-                      >
-                        <Radio className="w-3 h-3" />
-                      </a>
+                {lectures.map((lecture) => {
+                  const isUploading = uploadingLecture === lecture.id
+                  const canUpload = lecture.status === 'scheduled' || lecture.status === 'recording'
+
+                  return (
+                    <div
+                      key={lecture.id}
+                      className={`flex items-center gap-3 bg-bg2 border border-border-subtle rounded-xl p-3.5 transition-all hover:border-border-purple ${isUploading ? 'opacity-60' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected.has(lecture.id)}
+                        onChange={() => toggleSelect(lecture.id)}
+                        className="h-4 w-4 rounded border-border-subtle bg-bg3 accent-purple"
+                      />
+                      <Link href={`/dashboard/lectures/${lecture.id}`} className="flex-1 min-w-0 cursor-pointer">
+                        <p className="font-heading font-semibold text-[13px] text-text hover:text-purple-light transition-colors">
+                          {lecture.title}
+                        </p>
+                        <p className="text-[12px] text-text3 mt-0.5">
+                          {lecture.speakers?.name ?? 'Sem palestrante'}
+                          {lecture.scheduled_at && ` — ${new Date(lecture.scheduled_at).toLocaleString('pt-BR')}`}
+                          {lecture.duration_seconds && ` (${Math.round(lecture.duration_seconds / 60)}min)`}
+                        </p>
+                      </Link>
+                      <LectureStatusBadge status={lecture.status as LectureStatus} />
+                      <div className="flex gap-1.5">
+                        {canUpload && (
+                          <button
+                            onClick={() => handleUploadClick(lecture.id)}
+                            disabled={isUploading}
+                            className="w-7 h-7 rounded-md bg-bg3 border border-border-subtle flex items-center justify-center text-text2 hover:border-scribia-green/40 hover:bg-scribia-green/8 hover:text-scribia-green transition-all"
+                            title="Importar arquivo de áudio"
+                          >
+                            <Upload className="w-3 h-3" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => { loadSpeakers(); setEditingLecture(lecture); setShowLectureModal(true) }}
+                          className="w-7 h-7 rounded-md bg-bg3 border border-border-subtle flex items-center justify-center text-text2 hover:border-border-purple hover:bg-purple-dim hover:text-purple-light transition-all"
+                          title="Editar"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => deleteLecture(lecture.id)}
+                          className="w-7 h-7 rounded-md bg-bg3 border border-border-subtle flex items-center justify-center text-text2 hover:border-scribia-red/40 hover:bg-scribia-red/8 hover:text-scribia-red transition-all"
+                          title="Excluir"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                        <a
+                          href={`scribia://capture/${eventId}/${lecture.id}`}
+                          className="w-7 h-7 rounded-md bg-bg3 border border-border-subtle flex items-center justify-center text-text2 hover:border-border-purple hover:bg-purple-dim hover:text-purple-light transition-all"
+                          title="Abrir no desktop para gravação"
+                        >
+                          <Radio className="w-3 h-3" />
+                        </a>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             ) : (
               <div className="text-center py-12">

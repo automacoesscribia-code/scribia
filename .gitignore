@@ -47,3 +47,5 @@ coverage/
 # AIOX Runtime
 .aiox/handoffs/
 .ai/
+
+.vercel

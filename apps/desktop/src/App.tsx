@@ -9,7 +9,7 @@ import './App.css'
 
 type Screen =
   | { type: 'login' }
-  | { type: 'events' }
+  | { type: 'events'; returnToEventId?: string; returnToEventName?: string }
   | { type: 'speaker-lectures' }
   | { type: 'recording'; eventId: string; lectureId: string; lectureTitle: string; eventName: string }
 
@@ -54,11 +54,11 @@ function App() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         setUser(user)
-        loadUserProfile(user).then(() => setLoading(false))
+        loadUserProfile(user).then(() => setLoading(false)).catch(() => setLoading(false))
       } else {
         setLoading(false)
       }
-    })
+    }).catch(() => setLoading(false))
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const authUser = session?.user ?? null
@@ -97,7 +97,13 @@ function App() {
     if (userRole === 'speaker') {
       setScreen({ type: 'speaker-lectures' })
     } else {
-      setScreen({ type: 'events' })
+      // Return to the event the user was on, not the event list
+      const currentScreen = screen
+      if (currentScreen.type === 'recording') {
+        setScreen({ type: 'events', returnToEventId: currentScreen.eventId, returnToEventName: currentScreen.eventName })
+      } else {
+        setScreen({ type: 'events' })
+      }
     }
   }
 
@@ -142,6 +148,8 @@ function App() {
     <EventSelection
       onSelectLecture={handleSelectLecture}
       onLogout={handleLogout}
+      returnToEventId={screen.type === 'events' ? screen.returnToEventId : undefined}
+      returnToEventName={screen.type === 'events' ? screen.returnToEventName : undefined}
     />
   )
 }

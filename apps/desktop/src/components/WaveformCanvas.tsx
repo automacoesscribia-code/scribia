@@ -45,7 +45,7 @@ export function WaveformCanvas({ isActive, audioLevel }: WaveformCanvasProps) {
           ? 0.4 + Math.abs(noise) * 0.6
           : 0.15 + Math.abs(noise) * 0.15
 
-        ctx.fillStyle = `rgba(107,78,255,${alpha})`
+        ctx.fillStyle = `hsla(249,45%,55%,${alpha})`
         ctx.beginPath()
         ctx.roundRect(x + 1, 40 - amp, barW - 2, amp * 2, 2)
         ctx.fill()

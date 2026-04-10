@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { LogOut, ChevronUp } from 'lucide-react'
 import { createClient } from '@/lib/supabase-browser'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 interface UserMenuProps {
   userName: string
@@ -75,6 +76,9 @@ export function UserMenu({ userName, userRole, variant = 'sidebar' }: UserMenuPr
               <div className="text-[12.5px] font-medium text-text truncate">{userName}</div>
               <div className="text-[10px] text-text3">{userRole}</div>
             </div>
+            <div className="border-b border-border-subtle">
+              <ThemeToggle />
+            </div>
             <button
               onClick={handleSignOut}
               disabled={isSigningOut}
@@ -109,6 +113,9 @@ export function UserMenu({ userName, userRole, variant = 'sidebar' }: UserMenuPr
 
       {open && (
         <div className="absolute bottom-full left-0 right-0 mb-1.5 bg-bg3 border border-border-subtle rounded-lg shadow-xl shadow-black/30 overflow-hidden z-50 animate-fade-up">
+          <div className="border-b border-border-subtle">
+            <ThemeToggle />
+          </div>
           <button
             onClick={handleSignOut}
             disabled={isSigningOut}

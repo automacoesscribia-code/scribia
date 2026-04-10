@@ -8,6 +8,10 @@ use std::time::Instant;
 
 use super::devices::get_device_by_index;
 
+/// Target format for speech recording: mono 16kHz (optimal for voice + small files)
+const TARGET_SAMPLE_RATE: u32 = 16_000;
+const TARGET_CHANNELS: u16 = 1;
+
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub enum CaptureState {
     Idle,
@@ -36,6 +40,8 @@ pub struct SharedCaptureData {
     pub output_dir: Mutex<String>,
     pub sample_rate: Mutex<u32>,
     pub channels: Mutex<u16>,
+    /// Fractional position for resampling across callbacks
+    pub resample_pos: Mutex<f64>,
 }
 
 impl SharedCaptureData {
@@ -48,8 +54,9 @@ impl SharedCaptureData {
             writer: Mutex::new(None),
             chunk_count: Mutex::new(0),
             output_dir: Mutex::new(String::new()),
-            sample_rate: Mutex::new(44100),
-            channels: Mutex::new(1),
+            sample_rate: Mutex::new(TARGET_SAMPLE_RATE),
+            channels: Mutex::new(TARGET_CHANNELS),
+            resample_pos: Mutex::new(0.0),
         }
     }
 
@@ -65,6 +72,7 @@ impl SharedCaptureData {
         }
         *self.chunk_count.lock().unwrap() = 0;
         *self.output_dir.lock().unwrap() = String::new();
+        *self.resample_pos.lock().unwrap() = 0.0;
     }
 
     pub fn get_duration(&self) -> f64 {
@@ -82,14 +90,13 @@ impl SharedCaptureData {
         let state = self.state.lock().unwrap().clone();
         let duration_seconds = self.get_duration();
         let audio_level = *self.audio_level.lock().unwrap();
-        let chunks_saved = *self.chunk_count.lock().unwrap() + 1;
         let output_dir = self.output_dir.lock().unwrap().clone();
 
         CaptureStatus {
             state,
             duration_seconds,
             audio_level,
-            chunks_saved,
+            chunks_saved: 1,
             output_dir,
         }
     }
@@ -129,7 +136,6 @@ impl SharedCaptureData {
         }
 
         let duration = self.get_duration();
-        let chunks_saved = *self.chunk_count.lock().unwrap() + 1;
         let output_dir = self.output_dir.lock().unwrap().clone();
 
         *self.start_time.lock().unwrap() = None;
@@ -139,13 +145,15 @@ impl SharedCaptureData {
             state: CaptureState::Stopped,
             duration_seconds: duration,
             audio_level: 0.0,
-            chunks_saved,
+            chunks_saved: 1,
             output_dir,
         })
     }
 }
 
 /// Start capture — returns a cpal::Stream (NOT Send, keep on main thread)
+/// Audio is captured from the device and downsampled to 16kHz mono for optimal
+/// speech quality with minimal file size (~1.9 MB/min vs ~10 MB/min at 44.1kHz stereo).
 /// If `custom_output_dir` is Some, use that path instead of temp dir.
 pub fn start_capture_stream(
     shared: &Arc<SharedCaptureData>,
@@ -158,10 +166,13 @@ pub fn start_capture_stream(
         .default_input_config()
         .map_err(|e| format!("No input config: {}", e))?;
 
-    let sample_rate = config.sample_rate().0;
-    let channels = config.channels();
-    *shared.sample_rate.lock().unwrap() = sample_rate;
-    *shared.channels.lock().unwrap() = channels;
+    let device_sample_rate = config.sample_rate().0;
+    let device_channels = config.channels();
+
+    // Store TARGET format (what goes into the WAV file)
+    *shared.sample_rate.lock().unwrap() = TARGET_SAMPLE_RATE;
+    *shared.channels.lock().unwrap() = TARGET_CHANNELS;
+    *shared.resample_pos.lock().unwrap() = 0.0;
 
     let temp_dir = if let Some(dir) = custom_output_dir {
         std::path::PathBuf::from(dir)
@@ -171,8 +182,11 @@ pub fn start_capture_stream(
     std::fs::create_dir_all(&temp_dir).map_err(|e| format!("mkdir: {}", e))?;
     *shared.output_dir.lock().unwrap() = temp_dir.to_string_lossy().to_string();
 
+    // WAV spec: mono 16kHz 16-bit (speech-optimized)
     let spec = WavSpec {
-        channels, sample_rate, bits_per_sample: 16,
+        channels: TARGET_CHANNELS,
+        sample_rate: TARGET_SAMPLE_RATE,
+        bits_per_sample: 16,
         sample_format: hound::SampleFormat::Int,
     };
     let writer = WavWriter::create(temp_dir.join("chunk_0.wav"), spec)
@@ -181,11 +195,12 @@ pub fn start_capture_stream(
     *shared.chunk_count.lock().unwrap() = 0;
 
     let stream_config: StreamConfig = config.into();
-    let chunk_samples = (sample_rate as u64) * (channels as u64) * 30;
-    let counter = Arc::new(Mutex::new(0u64));
     let s = Arc::clone(shared);
-    let c = Arc::clone(&counter);
-    let d = temp_dir.clone();
+
+    // Capture device_sample_rate and device_channels for the callback closure
+    let dev_rate = device_sample_rate;
+    let dev_ch = device_channels as usize;
+    let resample_ratio = dev_rate as f64 / TARGET_SAMPLE_RATE as f64;
 
     let stream = device
         .build_input_stream(
@@ -197,7 +212,7 @@ pub fn start_capture_stream(
                     .unwrap_or(false);
                 if !is_recording { return; }
 
-                // Calculate audio level (RMS)
+                // Calculate audio level (RMS) from raw device samples
                 if !data.is_empty() {
                     let rms = (data.iter().map(|&x| x * x).sum::<f32>() / data.len() as f32).sqrt();
                     if let Ok(mut level) = s.audio_level.try_lock() {
@@ -205,28 +220,30 @@ pub fn start_capture_stream(
                     }
                 }
 
-                // Write samples to WAV
+                // Downsample to 16kHz mono and write to WAV
                 if let Ok(mut w) = s.writer.try_lock() {
                     if let Some(ref mut wr) = *w {
-                        for &sample in data { let _ = wr.write_sample((sample * 32767.0) as i16); }
-                    }
-                }
+                        if let Ok(mut pos) = s.resample_pos.try_lock() {
+                            let num_frames = data.len() / dev_ch;
 
-                // Track sample count for chunk rotation
-                if let Ok(mut cnt) = c.try_lock() {
-                    *cnt += data.len() as u64;
-                    if *cnt >= chunk_samples {
-                        *cnt = 0;
-                        if let Ok(mut cn) = s.chunk_count.try_lock() {
-                            *cn += 1;
-                            let path = d.join(format!("chunk_{}.wav", *cn));
-                            let sr = s.sample_rate.try_lock().map(|v| *v).unwrap_or(44100);
-                            let ch = s.channels.try_lock().map(|v| *v).unwrap_or(1);
-                            let sp = WavSpec { channels: ch, sample_rate: sr, bits_per_sample: 16, sample_format: hound::SampleFormat::Int };
-                            if let Ok(mut w) = s.writer.try_lock() {
-                                if let Some(old) = w.take() { let _ = old.finalize(); }
-                                if let Ok(nw) = WavWriter::create(path, sp) { *w = Some(nw); }
+                            while (*pos as usize) < num_frames {
+                                let frame_idx = *pos as usize;
+                                let base = frame_idx * dev_ch;
+
+                                // Mix all channels to mono
+                                let mut mono = 0.0f32;
+                                for c in 0..dev_ch {
+                                    if base + c < data.len() {
+                                        mono += data[base + c];
+                                    }
+                                }
+                                mono /= dev_ch as f32;
+
+                                let _ = wr.write_sample((mono * 32767.0) as i16);
+                                *pos += resample_ratio;
                             }
+                            // Carry over fractional position for next callback
+                            *pos -= num_frames as f64;
                         }
                     }
                 }

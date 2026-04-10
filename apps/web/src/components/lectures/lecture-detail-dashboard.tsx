@@ -259,7 +259,7 @@ export function LectureDetailClient({ lecture, audioUrl, audioChunkCount, eventI
             style={{ filter: 'invert(1) hue-rotate(180deg)', opacity: 0.8 }}
           />
           <p className="text-[11px] text-text3 mt-2">
-            Reproduzindo chunk 1 de {audioChunkCount} · Duração estimada: {formatDuration(lecture.audio_duration_seconds)}
+            {audioChunkCount} chunks concatenados · Duração estimada: {formatDuration(lecture.audio_duration_seconds)}
           </p>
         </div>
       )}

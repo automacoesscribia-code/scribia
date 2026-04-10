@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { supabase } from '../lib/supabase'
 import { WaveformCanvas } from '../components/WaveformCanvas'
+import { useTheme } from '../hooks/useTheme'
 
 interface CaptureStatus {
   state: 'Idle' | 'Recording' | 'Paused' | 'Stopped'
@@ -15,6 +16,13 @@ interface AudioDevice {
   name: string
   device_type: string
   index: number
+}
+
+interface LocalChunkInfo {
+  exists: boolean
+  chunk_count: number
+  total_bytes: number
+  output_dir: string
 }
 
 interface UploadResult {
@@ -41,10 +49,10 @@ interface RecordingSessionProps {
 type DeployStatus = 'none' | 'uploading' | 'published' | 'error'
 
 export function RecordingSession({ eventId, lectureId, lectureTitle, eventName, onBack }: RecordingSessionProps) {
+  const { cycleTheme, icon: themeIcon, label: themeLabel } = useTheme()
   const [status, setStatus] = useState<'idle' | 'recording' | 'paused' | 'stopped'>('idle')
   const [duration, setDuration] = useState(0)
   const [audioLevel, setAudioLevel] = useState(0)
-  const [chunksCount, setChunksCount] = useState(0)
   const [devices, setDevices] = useState<AudioDevice[]>([])
   const [selectedDevice, setSelectedDevice] = useState<number>(0)
   const [showDeviceSelect, setShowDeviceSelect] = useState(false)
@@ -53,6 +61,7 @@ export function RecordingSession({ eventId, lectureId, lectureTitle, eventName, 
   const [deployStatus, setDeployStatus] = useState<DeployStatus>('none')
   const [deployProgress, setDeployProgress] = useState(0)
   const [logs, setLogs] = useState<LogEntry[]>([])
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
   const pollRef = useRef<number | null>(null)
   const startTimeRef = useRef<string>('')
 
@@ -60,6 +69,17 @@ export function RecordingSession({ eventId, lectureId, lectureTitle, eventName, 
     const time = new Date().toLocaleTimeString('pt-BR')
     setLogs((prev) => [{ time, msg, type }, ...prev].slice(0, 20))
   }
+
+  useEffect(() => {
+    const goOnline = () => setIsOnline(true)
+    const goOffline = () => setIsOnline(false)
+    window.addEventListener('online', goOnline)
+    window.addEventListener('offline', goOffline)
+    return () => {
+      window.removeEventListener('online', goOnline)
+      window.removeEventListener('offline', goOffline)
+    }
+  }, [])
 
   useEffect(() => {
     invoke<AudioDevice[]>('list_audio_devices')
@@ -71,7 +91,47 @@ export function RecordingSession({ eventId, lectureId, lectureTitle, eventName, 
         setError(`Erro ao listar dispositivos: ${e}`)
         addLog(`Erro: ${e}`, 'error')
       })
-    addLog('Aguardando início da gravação', 'info')
+
+    // Check lecture status in DB and local chunks
+    async function checkExistingAudio() {
+      // 1. Check if lecture was already uploaded/processed in the platform
+      try {
+        const { data: lecture } = await supabase
+          .from('lectures')
+          .select('status, audio_duration_seconds')
+          .eq('id', lectureId)
+          .single()
+
+        if (lecture && (lecture.status === 'processing' || lecture.status === 'completed')) {
+          setStatus('stopped')
+          setDeployStatus('published')
+          setDeployProgress(100)
+          if (lecture.audio_duration_seconds) setDuration(lecture.audio_duration_seconds)
+          addLog('Áudio já enviado para a plataforma', 'ok')
+          addLog(`Status da palestra: ${lecture.status}`, 'info')
+          return
+        }
+      } catch {
+        // DB check failed, continue to local check
+      }
+
+      // 2. Check for local audio chunks not yet uploaded
+      try {
+        const info = await invoke<LocalChunkInfo>('check_local_chunks', { lectureId, eventId })
+        if (info.exists && info.chunk_count > 0) {
+          setStatus('stopped')
+          setOutputDir(info.output_dir)
+          addLog(`Áudio local encontrado — ${info.chunk_count} chunk(s), ${formatBytes(info.total_bytes)}`, 'ok')
+          addLog('Pronto para enviar à plataforma', 'info')
+        } else {
+          addLog('Aguardando início da gravação', 'info')
+        }
+      } catch {
+        addLog('Aguardando início da gravação', 'info')
+      }
+    }
+
+    checkExistingAudio()
   }, [])
 
   const pollStatus = useCallback(() => {
@@ -80,7 +140,7 @@ export function RecordingSession({ eventId, lectureId, lectureTitle, eventName, 
         const s = await invoke<CaptureStatus>('get_capture_status')
         setDuration(Math.floor(s.duration_seconds))
         setAudioLevel(s.audio_level)
-        setChunksCount(s.chunks_saved)
+
         setOutputDir(s.output_dir)
       } catch {
         // ignore
@@ -95,10 +155,10 @@ export function RecordingSession({ eventId, lectureId, lectureTitle, eventName, 
   useEffect(() => {
     if (status !== 'recording') return
     const interval = setInterval(() => {
-      addLog(`Chunk ${chunksCount} salvo ✓`, 'ok')
-    }, 10000)
+      addLog(`Gravação contínua — ${formatTime(duration)}`, 'ok')
+    }, 30000)
     return () => clearInterval(interval)
-  }, [status, chunksCount])
+  }, [status, duration])
 
   function formatTime(seconds: number): string {
     const h = Math.floor(seconds / 3600)
@@ -162,10 +222,10 @@ export function RecordingSession({ eventId, lectureId, lectureTitle, eventName, 
       if (pollRef.current) clearInterval(pollRef.current)
       setStatus('stopped')
       setDuration(Math.floor(result.duration_seconds))
-      setChunksCount(result.chunks_saved)
+
       setOutputDir(result.output_dir)
       addLog('Gravação finalizada — áudio salvo localmente', 'ok')
-      addLog(`Total: ${result.chunks_saved} chunks · ${formatTime(Math.floor(result.duration_seconds))}`, 'info')
+      addLog(`Duração total: ${formatTime(Math.floor(result.duration_seconds))}`, 'info')
       addLog(`Pasta: ${result.output_dir}`, 'info')
     } catch (e) {
       setError(`Erro ao parar: ${e}`)
@@ -209,22 +269,34 @@ export function RecordingSession({ eventId, lectureId, lectureTitle, eventName, 
 
       if (result.success) {
         setDeployProgress(95)
-        setDeployStatus('published')
-        addLog(`Deploy concluído — ${result.chunks_uploaded} chunks (${formatBytes(result.total_bytes)})`, 'ok')
+        addLog(`Upload concluído — áudio completo (${formatBytes(result.total_bytes)})`, 'ok')
 
         // Update lecture with audio info and set status to processing
         const audioStoragePath = `${eventId}/${lectureId}`
-        await supabase
+        const updateData: Record<string, unknown> = {
+          status: 'processing',
+          audio_path: audioStoragePath,
+          processing_progress: 0,
+        }
+        // Only set duration if we have a real value
+        if (duration > 0) {
+          updateData.audio_duration_seconds = duration
+        }
+
+        const { error: dbError } = await supabase
           .from('lectures')
-          .update({
-            status: 'processing',
-            audio_path: audioStoragePath,
-            audio_duration_seconds: duration,
-            processing_progress: 0,
-          } as never)
+          .update(updateData as never)
           .eq('id', lectureId)
 
-        addLog('Metadados do áudio salvos na palestra', 'ok')
+        if (dbError) {
+          addLog(`Erro ao atualizar status da palestra: ${dbError.message}`, 'error')
+          setError(`Upload OK, mas falha ao atualizar status: ${dbError.message}`)
+          setDeployStatus('error')
+          return
+        }
+
+        setDeployStatus('published')
+        addLog('Status da palestra atualizado para processamento', 'ok')
 
         // Auto-trigger processing pipeline
         try {
@@ -282,7 +354,6 @@ export function RecordingSession({ eventId, lectureId, lectureTitle, eventName, 
     }
   }
 
-  const recordingPct = status === 'recording' ? Math.min(95, Math.round((chunksCount / Math.max(chunksCount + 1, 1)) * 100)) : 0
   const deviceInfo = devices[selectedDevice]
 
   return (
@@ -304,14 +375,17 @@ export function RecordingSession({ eventId, lectureId, lectureTitle, eventName, 
           <div className="event-name">{eventName}</div>
           <div className="event-sub">{lectureTitle}</div>
         </div>
-        {status === 'recording' ? (
-          <div className="status-dot">
-            <div className="dot" />
-            Conectado
-          </div>
-        ) : (
-          <button className="btn-link" onClick={onBack}>← Voltar</button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button className="btn-link" onClick={cycleTheme} title={`Tema: ${themeLabel}`}>{themeIcon}</button>
+          {status === 'recording' ? (
+            <div className="status-dot">
+              <div className="dot" />
+              Conectado
+            </div>
+          ) : (
+            <button className="btn-link" onClick={onBack}>← Voltar</button>
+          )}
+        </div>
       </div>
 
       {/* Main Grid */}
@@ -329,7 +403,7 @@ export function RecordingSession({ eventId, lectureId, lectureTitle, eventName, 
               </div>
             )}
             {status === 'paused' && (
-              <div className="rec-indicator" style={{ background: 'rgba(255,184,48,0.1)', borderColor: 'rgba(255,184,48,0.25)' }}>
+              <div className="rec-indicator" style={{ background: 'var(--warning-muted)', borderColor: 'var(--warning-border)' }}>
                 <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--yellow)', letterSpacing: 1 }}>PAUSADO</span>
               </div>
             )}
@@ -338,7 +412,7 @@ export function RecordingSession({ eventId, lectureId, lectureTitle, eventName, 
               {status === 'idle' && 'Pronto para gravar'}
               {status === 'recording' && 'Gravação em andamento'}
               {status === 'paused' && 'Gravação pausada'}
-              {status === 'stopped' && `Gravação finalizada — ${chunksCount} chunks`}
+              {status === 'stopped' && `Gravação finalizada — ${formatTime(duration)}`}
             </div>
           </div>
 
@@ -382,10 +456,18 @@ export function RecordingSession({ eventId, lectureId, lectureTitle, eventName, 
           )}
 
           {/* Post-recording summary panel */}
-          {status === 'stopped' && (
-            <div className="card" style={{ padding: 20, background: 'var(--bg2)', border: '1px solid var(--border)' }}>
-              <div className="font-heading" style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>
-                Áudio salvo localmente
+          {status === 'stopped' && deployStatus === 'none' && (
+            <div className="card" style={{
+              padding: 20,
+              background: 'var(--warning-dim)',
+              border: '1px solid var(--warning-border)',
+              borderRadius: 10,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <span style={{ fontSize: 18 }}>☁</span>
+                <div className="font-heading" style={{ fontSize: 14, fontWeight: 700, color: 'var(--yellow)' }}>
+                  Áudio salvo apenas no seu computador
+                </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 20px', fontSize: 12 }}>
                 <div>
@@ -393,21 +475,62 @@ export function RecordingSession({ eventId, lectureId, lectureTitle, eventName, 
                   <span className="font-mono" style={{ color: 'var(--text)' }}>{formatTime(duration)}</span>
                 </div>
                 <div>
-                  <span style={{ color: 'var(--text3)' }}>Chunks: </span>
-                  <span style={{ color: 'var(--text)' }}>{chunksCount}</span>
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <span style={{ color: 'var(--text3)' }}>Pasta: </span>
-                  <span style={{ color: 'var(--text2)', fontSize: 11, wordBreak: 'break-all' }}>{outputDir}</span>
+                  <span style={{ color: 'var(--text3)' }}>Arquivo: </span>
+                  <span style={{ color: 'var(--text)' }}>Áudio completo (WAV)</span>
                 </div>
               </div>
-              <button
-                onClick={handleOpenFolder}
-                className="btn btn-ghost btn-sm"
-                style={{ marginTop: 12, fontSize: 11 }}
-              >
-                📂 Abrir pasta
-              </button>
+              <div style={{
+                marginTop: 12, padding: '10px 12px', borderRadius: 6,
+                background: 'var(--warning-muted)', fontSize: 12, color: 'var(--text2)', lineHeight: 1.5,
+              }}>
+                {isOnline
+                  ? 'O áudio ainda não foi enviado para a plataforma. Clique em "Enviar para plataforma" abaixo.'
+                  : 'Sem conexão com a internet. O áudio está seguro localmente. Envie quando a conexão estabilizar.'}
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center' }}>
+                <button onClick={handleOpenFolder} className="btn btn-ghost btn-sm" style={{ fontSize: 11 }}>
+                  Abrir pasta
+                </button>
+                <div style={{ flex: 1 }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                  <div style={{
+                    width: 6, height: 6, borderRadius: '50%',
+                    background: isOnline ? 'var(--green)' : 'var(--red)',
+                    animation: !isOnline ? 'pulse 1.5s infinite' : undefined,
+                  }} />
+                  <span style={{ color: isOnline ? 'var(--green)' : 'var(--red)' }}>
+                    {isOnline ? 'Online' : 'Offline'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+          {status === 'stopped' && deployStatus === 'published' && (
+            <div className="card" style={{ padding: 20, background: 'var(--success-dim)', border: '1px solid var(--success-border)', borderRadius: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 18, color: 'var(--green)' }}>✓</span>
+                <div className="font-heading" style={{ fontSize: 14, fontWeight: 700, color: 'var(--green)' }}>
+                  Áudio enviado com sucesso
+                </div>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 8 }}>
+                Duração: {formatTime(duration)} · O processamento com IA foi iniciado.
+              </div>
+            </div>
+          )}
+          {status === 'stopped' && deployStatus === 'error' && (
+            <div className="card" style={{ padding: 20, background: 'var(--destructive-dim)', border: '1px solid var(--destructive-border)', borderRadius: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 18 }}>⚠</span>
+                <div className="font-heading" style={{ fontSize: 14, fontWeight: 700, color: 'var(--red)' }}>
+                  Falha ao enviar
+                </div>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.5 }}>
+                {!isOnline
+                  ? 'Sem conexão com a internet. O áudio está seguro localmente. Tente novamente quando a conexão estabilizar.'
+                  : 'Ocorreu um erro ao enviar o áudio. Ele está seguro localmente. Tente novamente.'}
+              </div>
             </div>
           )}
 
@@ -418,42 +541,75 @@ export function RecordingSession({ eventId, lectureId, lectureTitle, eventName, 
             {status === 'idle' && (
               <>
                 <button className="btn-ctrl" style={{ width: 40, height: 40, fontSize: 14 }} title="Configurações">⚙</button>
-                <button className="btn-ctrl" style={{ opacity: 0.3, cursor: 'default' }} title="Pausar">⏸</button>
                 <button onClick={startRecording} className="btn-rec" title="Iniciar Gravação">
                   <span style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', display: 'block' }} />
                 </button>
-                <button className="btn-ctrl" style={{ opacity: 0.3, cursor: 'default' }} title="Parar">■</button>
                 <button className="btn-ctrl" style={{ width: 40, height: 40, fontSize: 14 }} title="Histórico">🕐</button>
               </>
             )}
             {status === 'recording' && (
               <>
-                <button className="btn-ctrl" style={{ width: 40, height: 40, fontSize: 14 }} title="Configurações">⚙</button>
-                <button onClick={pauseRecording} className="btn-ctrl" title="Pausar">⏸</button>
-                <div className="btn-rec" style={{ background: 'var(--red)', boxShadow: '0 0 24px rgba(255,77,106,0.3)', cursor: 'default' }}>
-                  <div className="rec-dot" style={{ width: 12, height: 12 }} />
-                </div>
-                <button onClick={stopRecording} className="btn-ctrl" style={{ background: 'rgba(255,77,106,0.1)', borderColor: 'rgba(255,77,106,0.3)', color: 'var(--red)' }} title="Parar">■</button>
-                <button className="btn-ctrl" style={{ width: 40, height: 40, fontSize: 14 }} title="Histórico">🕐</button>
+                <button
+                  onClick={pauseRecording}
+                  className="btn-rec"
+                  style={{
+                    background: 'var(--yellow)',
+                    boxShadow: '0 0 24px hsla(38, 92%, 50%, 0.2)',
+                  }}
+                  title="Pausar"
+                >
+                  <span style={{ display: 'flex', gap: 4 }}>
+                    <span style={{ width: 4, height: 18, borderRadius: 2, background: '#fff' }} />
+                    <span style={{ width: 4, height: 18, borderRadius: 2, background: '#fff' }} />
+                  </span>
+                </button>
+                <button
+                  onClick={stopRecording}
+                  className="btn-rec"
+                  style={{
+                    width: 52, height: 52,
+                    background: 'var(--red)',
+                    boxShadow: '0 0 24px hsla(0, 72%, 55%, 0.3)',
+                  }}
+                  title="Parar gravação"
+                >
+                  <span style={{ width: 18, height: 18, borderRadius: 3, background: '#fff', display: 'block' }} />
+                </button>
               </>
             )}
             {status === 'paused' && (
               <>
-                <button className="btn-ctrl" style={{ width: 40, height: 40, fontSize: 14 }}>⚙</button>
-                <button onClick={resumeRecording} className="btn-ctrl" style={{ background: 'rgba(0,212,160,0.1)', borderColor: 'rgba(0,212,160,0.3)', color: 'var(--green)' }} title="Retomar">▶</button>
-                <div className="btn-rec" style={{ background: 'var(--yellow)', boxShadow: '0 0 24px rgba(255,184,48,0.2)', cursor: 'default' }}>
-                  <span style={{ fontSize: 20 }}>⏸</span>
-                </div>
-                <button onClick={stopRecording} className="btn-ctrl" style={{ background: 'rgba(255,77,106,0.1)', borderColor: 'rgba(255,77,106,0.3)', color: 'var(--red)' }} title="Parar">■</button>
-                <button className="btn-ctrl" style={{ width: 40, height: 40, fontSize: 14 }}>🕐</button>
+                <button
+                  onClick={resumeRecording}
+                  className="btn-rec"
+                  style={{
+                    background: 'var(--primary)',
+                    boxShadow: 'var(--shadow-elegant)',
+                  }}
+                  title="Retomar gravação"
+                >
+                  <span style={{ width: 0, height: 0, borderStyle: 'solid', borderWidth: '10px 0 10px 16px', borderColor: 'transparent transparent transparent #fff', marginLeft: 3 }} />
+                </button>
+                <button
+                  onClick={stopRecording}
+                  className="btn-rec"
+                  style={{
+                    width: 52, height: 52,
+                    background: 'var(--red)',
+                    boxShadow: '0 0 24px hsla(0, 72%, 55%, 0.3)',
+                  }}
+                  title="Parar gravação"
+                >
+                  <span style={{ width: 18, height: 18, borderRadius: 3, background: '#fff', display: 'block' }} />
+                </button>
               </>
             )}
             {status === 'stopped' && (
               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                 {deployStatus === 'none' && (
                   <>
-                    <button onClick={handleDeploy} className="btn btn-primary" style={{ gap: 8 }}>
-                      🚀 Deploy
+                    <button onClick={handleDeploy} className="btn btn-primary" style={{ gap: 8 }} disabled={!isOnline}>
+                      Enviar para plataforma
                     </button>
                     <button onClick={onBack} className="btn btn-ghost">
                       Voltar
@@ -477,7 +633,7 @@ export function RecordingSession({ eventId, lectureId, lectureTitle, eventName, 
                 )}
                 {deployStatus === 'error' && (
                   <>
-                    <button onClick={handleDeploy} className="btn btn-danger" style={{ gap: 6 }}>
+                    <button onClick={handleDeploy} className="btn btn-danger" style={{ gap: 6 }} disabled={!isOnline}>
                       ↻ Tentar novamente
                     </button>
                     <button onClick={onBack} className="btn btn-ghost">
@@ -534,8 +690,8 @@ export function RecordingSession({ eventId, lectureId, lectureTitle, eventName, 
               </div>
               <div style={{ fontSize: 10.5, color: 'var(--text3)', marginTop: 6 }}>
                 {deployStatus === 'published'
-                  ? `${chunksCount} chunks publicados`
-                  : `Enviando chunk ${Math.ceil(chunksCount * deployProgress / 100)} de ${chunksCount}...`}
+                  ? 'Áudio completo publicado'
+                  : 'Enviando áudio completo...'}
               </div>
             </div>
           )}
@@ -546,14 +702,14 @@ export function RecordingSession({ eventId, lectureId, lectureTitle, eventName, 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <span style={{ fontSize: 11.5, color: 'var(--text2)', fontWeight: 500 }}>Gravação local</span>
                 <span className="font-mono" style={{ fontSize: 12, color: 'var(--green)' }}>
-                  {chunksCount} chunks
+                  {formatTime(duration)}
                 </span>
               </div>
               <div className="upload-bar">
-                <div className="upload-fill" style={{ width: `${recordingPct}%`, background: 'var(--green)' }} />
+                <div className="upload-fill" style={{ width: status === 'recording' ? '100%' : '50%', background: status === 'recording' ? 'var(--green)' : 'var(--yellow)' }} />
               </div>
               <div style={{ fontSize: 10.5, color: 'var(--text3)', marginTop: 6 }}>
-                Salvando na pasta do app
+                Gravando áudio contínuo · Salvando localmente
               </div>
             </div>
           )}

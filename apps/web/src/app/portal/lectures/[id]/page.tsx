@@ -59,17 +59,15 @@ export default async function LectureDetailPage({ params }: Props) {
     .from('audio-files')
     .list(storagePath)
 
+  const getChunkIndex = (name: string) => {
+    const m = name.match(/chunk_(\d+)\.wav$/); return m ? parseInt(m[1], 10) : 0
+  }
   const audioChunks = (audioFiles ?? [])
     .filter((f: { name: string }) => f.name.endsWith('.wav'))
-    .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name))
+    .sort((a: { name: string }, b: { name: string }) => getChunkIndex(a.name) - getChunkIndex(b.name))
 
-  let audioUrl: string | null = null
-  if (audioChunks.length > 0) {
-    const { data: signedData } = await adminClient.storage
-      .from('audio-files')
-      .createSignedUrl(`${storagePath}/${audioChunks[0].name}`, 3600)
-    audioUrl = signedData?.signedUrl ?? null
-  }
+  // Use concatenation API for full audio playback
+  const audioUrl = audioChunks.length > 0 ? `/api/audio/${l.id}` : null
 
   return (
     <div className="max-w-[900px] mx-auto px-10 py-9">

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { invoke } from '@tauri-apps/api/core'
+import { useTheme } from '../hooks/useTheme'
 
 interface SpeakerLecture {
   id: string
@@ -54,6 +55,7 @@ function getStatusInfo(status: LectureDisplayStatus) {
 }
 
 export function SpeakerLectures({ userId, userName, onSelectLecture, onLogout }: SpeakerLecturesProps) {
+  const { cycleTheme, icon: themeIcon, label: themeLabel } = useTheme()
   const [lectures, setLectures] = useState<SpeakerLecture[]>([])
   const [localStatus, setLocalStatus] = useState<Record<string, LocalChunkInfo>>({})
   const [loading, setLoading] = useState(true)
@@ -149,9 +151,9 @@ export function SpeakerLectures({ userId, userName, onSelectLecture, onLogout }:
           <div className="event-name" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{
               width: 28, height: 28, borderRadius: '50%',
-              background: 'rgba(107,78,255,0.12)', border: '1px solid rgba(107,78,255,0.3)',
+              background: 'var(--primary-dim)', border: '1px solid var(--primary-ring)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, fontWeight: 700, color: 'var(--purple-light)',
+              fontSize: 11, fontWeight: 700, color: 'var(--primary)',
             }}>
               {initials}
             </div>
@@ -159,12 +161,41 @@ export function SpeakerLectures({ userId, userName, onSelectLecture, onLogout }:
           </div>
           <div className="event-sub">Palestrante</div>
         </div>
-        <button className="btn-link" onClick={onLogout}>Sair</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button className="btn-link" onClick={cycleTheme} title={`Tema: ${themeLabel}`}>{themeIcon}</button>
+          <button className="btn-link" onClick={onLogout}>Sair</button>
+        </div>
       </div>
 
       {/* Content */}
       <div style={{ flex: 1, padding: 28 }}>
         <div className="animate-fade-up">
+          {/* Banner de upload pendente */}
+          {lectures.some((l) => {
+            const local = localStatus[l.id]
+            return local?.exists && local.chunk_count > 0 && getDisplayStatus(l) === 'saved-locally'
+          }) && (
+            <div style={{
+              padding: '14px 18px', marginBottom: 16, borderRadius: 10,
+              background: 'var(--warning-dim)', border: '1px solid var(--warning-border)',
+              display: 'flex', alignItems: 'center', gap: 12,
+            }}>
+              <span style={{ fontSize: 20 }}>⚠</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--yellow)', marginBottom: 2 }}>
+                  Áudio pendente de envio
+                </div>
+                <div style={{ fontSize: 11.5, color: 'var(--text2)', lineHeight: 1.4 }}>
+                  {lectures.filter((l) => {
+                    const local = localStatus[l.id]
+                    return local?.exists && local.chunk_count > 0 && getDisplayStatus(l) === 'saved-locally'
+                  }).map((l) => l.title).join(', ')}
+                  {' — '}Conecte-se à internet e envie para a plataforma
+                </div>
+              </div>
+            </div>
+          )}
+
           <h2 className="font-heading" style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>
             Minhas Palestras
           </h2>
@@ -217,7 +248,7 @@ export function SpeakerLectures({ userId, userName, onSelectLecture, onLogout }:
                         {local?.exists && local.chunk_count > 0 && displayStatus === 'saved-locally' && (
                           <>
                             <span>·</span>
-                            <span>{local.chunk_count} chunks ({formatBytes(local.total_bytes)})</span>
+                            <span>Áudio local ({formatBytes(local.total_bytes)})</span>
                           </>
                         )}
                       </div>

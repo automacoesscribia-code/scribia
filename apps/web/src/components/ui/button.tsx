@@ -6,20 +6,22 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-border-purple focus-visible:ring-2 focus-visible:ring-purple/20 active:translate-y-px disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors outline-none select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:translate-y-px disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-purple text-white hover:bg-purple-light glow-purple",
+        default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-elegant",
         outline:
-          "border-border-subtle bg-transparent hover:bg-bg3 hover:text-text hover:border-border-purple text-text2",
+          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
         secondary:
-          "bg-bg3 text-text2 hover:text-text hover:bg-bg4",
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost:
-          "hover:bg-bg3 hover:text-text text-text2",
+          "hover:bg-accent hover:text-accent-foreground",
         destructive:
-          "bg-scribia-red/10 text-scribia-red hover:bg-scribia-red/20 border-scribia-red/25",
-        link: "text-purple-light underline-offset-4 hover:underline",
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        link: "text-primary underline-offset-4 hover:underline",
+        hero: "bg-[image:var(--gradient-primary)] text-white shadow-elegant hover:shadow-glow transition-shadow",
+        cta: "bg-[image:var(--gradient-primary)] text-white shadow-elegant hover:shadow-glow focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-shadow",
       },
       size: {
         default:
