@@ -49,7 +49,7 @@ export function EventHeader({ event }: { event: EventData }) {
   }
 
   return (
-    <div className="mb-8">
+    <div className="mb-7 md:mb-8">
       <Link
         href="/dashboard"
         className="inline-flex items-center gap-1 text-[13px] text-text3 hover:text-purple-light transition-colors mb-4"
@@ -58,14 +58,14 @@ export function EventHeader({ event }: { event: EventData }) {
         Voltar aos eventos
       </Link>
 
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="flex-1 min-w-0">
           {editing === 'name' ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <input
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}
-                className="font-heading text-2xl font-bold text-text bg-transparent border-b-2 border-purple outline-none"
+                className="font-heading text-xl sm:text-2xl font-bold text-text bg-transparent border-b-2 border-purple outline-none flex-1 min-w-0"
                 autoFocus
                 onKeyDown={(e) => e.key === 'Enter' && saveField('name')}
               />
@@ -84,7 +84,7 @@ export function EventHeader({ event }: { event: EventData }) {
             </div>
           ) : (
             <h1
-              className="font-heading text-2xl font-bold text-text cursor-pointer hover:text-purple-light transition-colors"
+              className="font-heading text-xl sm:text-2xl font-bold text-text cursor-pointer hover:text-purple-light transition-colors break-words"
               onClick={() => startEdit('name', event.name)}
               title="Clique para editar"
             >
@@ -125,7 +125,7 @@ export function EventHeader({ event }: { event: EventData }) {
             </p>
           )}
 
-          <div className="mt-3 flex gap-4 text-[12px] text-text3">
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-text3">
             <span>
               {new Date(event.start_date).toLocaleDateString('pt-BR')} —{' '}
               {new Date(event.end_date).toLocaleDateString('pt-BR')}
@@ -134,7 +134,7 @@ export function EventHeader({ event }: { event: EventData }) {
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {event.status === 'draft' && (
             <button
               onClick={activateEvent}

@@ -146,37 +146,67 @@ export function LectureDetailClient({ lecture, audioUrl, audioChunkCount, eventI
     try {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
       const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      const CHUNK_BATCH = 10 // Process 10 audio chunks per Edge Function call
 
-      const response = await fetch(`${supabaseUrl}/functions/v1/process-lecture`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'apikey': anonKey ?? '',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const callProcessLecture = async (body: Record<string, unknown>) => {
+        const res = await fetch(`${supabaseUrl}/functions/v1/process-lecture`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': anonKey ?? '',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        })
+        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        if (!res.ok) throw new Error(data.error || `Erro ${res.status}`)
+        return data
+      }
+
+      const requestedSteps = steps ?? ['transcribe', 'summarize', 'ebook', 'playbook']
+
+      // Step 1: Transcribe in batches of CHUNK_BATCH
+      if (requestedSteps.includes('transcribe')) {
+        let chunkStart = 0
+        let hasMore = true
+
+        while (hasMore) {
+          console.log(`Transcribing chunks ${chunkStart} to ${chunkStart + CHUNK_BATCH}...`)
+          const result = await callProcessLecture({
+            lecture_id: lecture.id,
+            steps: ['transcribe'],
+            chunk_start: chunkStart,
+            chunk_end: chunkStart + CHUNK_BATCH,
+          })
+          console.log('transcribe batch result:', result)
+
+          if (result.partial) {
+            chunkStart = result.next_chunk_start
+          } else {
+            hasMore = false
+          }
+        }
+      }
+
+      // Step 2: Generate text content (summarize + ebook + playbook) in one call
+      const textSteps = requestedSteps.filter((s: string) => s !== 'transcribe')
+      if (textSteps.length > 0) {
+        console.log('Generating text content:', textSteps)
+        const result = await callProcessLecture({
           lecture_id: lecture.id,
-          steps: steps ?? ['transcribe', 'summarize', 'ebook', 'playbook'],
-        }),
-      })
+          steps: textSteps,
+        })
+        console.log('text generation result:', result)
+      }
 
       clearInterval(pollInterval)
-
-      const result = await response.json().catch(() => ({ error: `HTTP ${response.status}` }))
-      console.log('process-lecture response:', response.status, result)
-
-      if (!response.ok) {
-        setGenError(result.error || `Erro ${response.status}`)
-        setCurrentStatus('failed')
-      } else {
-        setGenProgress(100)
-        setCurrentStatus('completed')
-        router.refresh()
-      }
+      setGenProgress(100)
+      setCurrentStatus('completed')
+      router.refresh()
     } catch (e) {
       clearInterval(pollInterval)
       console.error('process-lecture exception:', e)
-      setGenError(`Erro: ${e}`)
+      setGenError(`${e instanceof Error ? e.message : e}`)
       setCurrentStatus('failed')
     }
 
@@ -196,35 +226,37 @@ export function LectureDetailClient({ lecture, audioUrl, audioChunkCount, eventI
   }
 
   return (
-    <div className="space-y-6 animate-fade-up">
+    <div className="space-y-5 sm:space-y-6 animate-fade-up">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="font-heading text-[24px] font-extrabold text-text">{lecture.title}</h1>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="font-heading text-[20px] sm:text-[22px] md:text-[24px] font-extrabold text-text leading-tight break-words">{lecture.title}</h1>
           {lecture.description && (
             <p className="text-[13px] text-text3 mt-1">{lecture.description}</p>
           )}
         </div>
-        <LectureStatusBadge status={currentStatus as LectureStatus} />
+        <div className="shrink-0">
+          <LectureStatusBadge status={currentStatus as LectureStatus} />
+        </div>
       </div>
 
       {/* Metadata cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-bg2 border border-border-subtle rounded-xl p-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        <div className="bg-bg2 border border-border-subtle rounded-xl p-3 sm:p-4">
           <div className="flex items-center gap-2 text-text3 mb-2">
             <User className="w-3.5 h-3.5" />
             <span className="text-[11px] uppercase tracking-wider">Palestrante</span>
           </div>
           <p className="text-[13px] text-text font-medium">{lecture.speakers?.name ?? 'Não atribuído'}</p>
         </div>
-        <div className="bg-bg2 border border-border-subtle rounded-xl p-4">
+        <div className="bg-bg2 border border-border-subtle rounded-xl p-3 sm:p-4">
           <div className="flex items-center gap-2 text-text3 mb-2">
             <Clock className="w-3.5 h-3.5" />
             <span className="text-[11px] uppercase tracking-wider">Agendada</span>
           </div>
           <p className="text-[13px] text-text font-medium">{formatDate(lecture.scheduled_at)}</p>
         </div>
-        <div className="bg-bg2 border border-border-subtle rounded-xl p-4">
+        <div className="bg-bg2 border border-border-subtle rounded-xl p-3 sm:p-4">
           <div className="flex items-center gap-2 text-text3 mb-2">
             <Mic className="w-3.5 h-3.5" />
             <span className="text-[11px] uppercase tracking-wider">Áudio</span>
@@ -233,7 +265,7 @@ export function LectureDetailClient({ lecture, audioUrl, audioChunkCount, eventI
             {audioChunkCount > 0 ? `${audioChunkCount} chunks` : 'Sem áudio'}
           </p>
         </div>
-        <div className="bg-bg2 border border-border-subtle rounded-xl p-4">
+        <div className="bg-bg2 border border-border-subtle rounded-xl p-3 sm:p-4">
           <div className="flex items-center gap-2 text-text3 mb-2">
             <RefreshCw className="w-3.5 h-3.5" />
             <span className="text-[11px] uppercase tracking-wider">Progresso</span>
@@ -244,7 +276,7 @@ export function LectureDetailClient({ lecture, audioUrl, audioChunkCount, eventI
 
       {/* Audio player */}
       {audioUrl && (
-        <div className="bg-bg2 border border-border-subtle rounded-2xl p-6">
+        <div className="bg-bg2 border border-border-subtle rounded-2xl p-4 sm:p-6">
           <div className="font-heading text-[14px] font-bold text-text mb-4 flex items-center gap-2">
             <Mic className="w-4 h-4 text-purple-light" />
             Áudio da palestra
@@ -265,7 +297,7 @@ export function LectureDetailClient({ lecture, audioUrl, audioChunkCount, eventI
       )}
 
       {!audioUrl && audioChunkCount === 0 && (
-        <div className="bg-bg2 border border-border-subtle rounded-2xl p-8 text-center">
+        <div className="bg-bg2 border border-border-subtle rounded-2xl p-6 sm:p-8 text-center">
           <Mic className="w-8 h-8 text-text3 mx-auto mb-3" />
           <p className="text-[13px] text-text3">Nenhum áudio gravado ainda.</p>
           <p className="text-[11px] text-text3 mt-1">O palestrante precisa gravar pelo app desktop.</p>
@@ -274,7 +306,7 @@ export function LectureDetailClient({ lecture, audioUrl, audioChunkCount, eventI
 
       {/* Transcript */}
       {lecture.transcript_text && (
-        <div className="bg-bg2 border border-border-subtle rounded-2xl p-6">
+        <div className="bg-bg2 border border-border-subtle rounded-2xl p-4 sm:p-6">
           <div className="font-heading text-[14px] font-bold text-text mb-3 flex items-center gap-2">
             <FileText className="w-4 h-4 text-purple-light" />
             Transcrição
@@ -289,7 +321,7 @@ export function LectureDetailClient({ lecture, audioUrl, audioChunkCount, eventI
 
       {/* Summary + Topics */}
       {lecture.summary && (
-        <div className="bg-bg2 border border-border-subtle rounded-2xl p-6">
+        <div className="bg-bg2 border border-border-subtle rounded-2xl p-4 sm:p-6">
           <div className="font-heading text-[14px] font-bold text-text mb-3 flex items-center gap-2">
             <BookOpen className="w-4 h-4 text-purple-light" />
             Resumo
@@ -309,17 +341,17 @@ export function LectureDetailClient({ lecture, audioUrl, audioChunkCount, eventI
 
       {/* Materials */}
       {(lecture.ebook_url || lecture.playbook_url) && (
-        <div className="bg-bg2 border border-border-subtle rounded-2xl p-6">
+        <div className="bg-bg2 border border-border-subtle rounded-2xl p-4 sm:p-6">
           <div className="font-heading text-[14px] font-bold text-text mb-3 flex items-center gap-2">
             <Download className="w-4 h-4 text-purple-light" />
             Materiais gerados
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-2 sm:gap-3">
             {lecture.ebook_url && (
               <button
                 onClick={() => handleDownloadMaterial(lecture.ebook_url!, 'ebook')}
                 disabled={downloading === 'ebook'}
-                className="inline-flex items-center gap-2 bg-bg3 border border-border-subtle rounded-xl px-4 py-2.5 text-[12px] text-text2 hover:border-border-purple hover:text-purple-light transition-all cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center gap-2 bg-bg3 border border-border-subtle rounded-xl px-3.5 sm:px-4 py-2.5 text-[12px] text-text2 hover:border-border-purple hover:text-purple-light transition-all cursor-pointer disabled:opacity-50"
               >
                 {downloading === 'ebook' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BookOpen className="w-3.5 h-3.5" />}
                 E-book
@@ -329,7 +361,7 @@ export function LectureDetailClient({ lecture, audioUrl, audioChunkCount, eventI
               <button
                 onClick={() => handleDownloadMaterial(lecture.playbook_url!, 'playbook')}
                 disabled={downloading === 'playbook'}
-                className="inline-flex items-center gap-2 bg-bg3 border border-border-subtle rounded-xl px-4 py-2.5 text-[12px] text-text2 hover:border-border-purple hover:text-purple-light transition-all cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center gap-2 bg-bg3 border border-border-subtle rounded-xl px-3.5 sm:px-4 py-2.5 text-[12px] text-text2 hover:border-border-purple hover:text-purple-light transition-all cursor-pointer disabled:opacity-50"
               >
                 {downloading === 'playbook' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
                 Playbook
@@ -341,7 +373,7 @@ export function LectureDetailClient({ lecture, audioUrl, audioChunkCount, eventI
 
       {/* AI Generation Card */}
       {audioChunkCount > 0 && (
-        <div className="bg-bg2 border border-border-subtle rounded-2xl p-6">
+        <div className="bg-bg2 border border-border-subtle rounded-2xl p-4 sm:p-6">
           <div className="font-heading text-[14px] font-bold text-text mb-4 flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-purple-light" />
             Processamento com IA (Gemini)
@@ -380,10 +412,11 @@ export function LectureDetailClient({ lecture, audioUrl, audioChunkCount, eventI
             <button
               onClick={() => handleGenerate()}
               disabled={generating}
-              className="inline-flex items-center gap-2 bg-purple text-white px-4 py-2.5 rounded-xl text-[12px] font-medium hover:bg-purple-light glow-purple transition-all disabled:opacity-50 cursor-pointer"
+              className="inline-flex items-center gap-2 bg-purple text-white px-4 py-2.5 rounded-xl text-[12px] font-medium hover:bg-purple-light glow-purple transition-all disabled:opacity-50 cursor-pointer text-left"
             >
-              {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-              {generating ? 'Processando...' : 'Gerar tudo (transcrição + resumo + ebook + playbook)'}
+              {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <Sparkles className="w-3.5 h-3.5 shrink-0" />}
+              <span className="sm:hidden">{generating ? 'Processando...' : 'Gerar tudo'}</span>
+              <span className="hidden sm:inline">{generating ? 'Processando...' : 'Gerar tudo (transcrição + resumo + ebook + playbook)'}</span>
             </button>
 
             {/* Individual steps */}
@@ -417,7 +450,7 @@ export function LectureDetailClient({ lecture, audioUrl, audioChunkCount, eventI
       )}
 
       {/* Actions */}
-      <div className="flex gap-3 pt-2">
+      <div className="flex flex-wrap gap-2 sm:gap-3 pt-2">
         {(currentStatus === 'processing' || currentStatus === 'scheduled' || currentStatus === 'recording') && audioChunkCount > 0 && (
           <button
             onClick={handleMarkComplete}

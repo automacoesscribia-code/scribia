@@ -113,7 +113,7 @@ export function AnalyticsTab({ eventId, eventStatus = 'active' }: AnalyticsTabPr
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 stagger-children">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 stagger-children">
         <StatCard
           label="Palestras"
           value={stats.totalLectures}
@@ -183,7 +183,7 @@ export function AnalyticsTab({ eventId, eventStatus = 'active' }: AnalyticsTabPr
           <h3 className="font-heading text-sm font-bold text-text">Detalhamento por palestra</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+          <table className="w-full border-collapse min-w-[600px]">
             <thead>
               <tr>
                 <th className="text-[10.5px] text-text3 uppercase tracking-[0.8px] px-5 py-2.5 text-left border-b border-border-subtle">Palestra</th>

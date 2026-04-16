@@ -49,6 +49,104 @@ async function getAiConfig(): Promise<AiConfig> {
   }
 }
 
+export { getAiConfig }
+export type { AiConfig }
+
+export async function transcribeAudio(
+  base64Audio: string,
+  mimeType: string,
+  prompt: string,
+): Promise<string> {
+  const config = await getAiConfig()
+  if (!config.apiKey) throw new Error(`Missing API key for provider: ${config.provider}`)
+
+  if (config.provider === 'gemini') {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { inlineData: { mimeType, data: base64Audio } },
+              { text: prompt },
+            ],
+          }],
+        }),
+      },
+    )
+    const data = await res.json()
+    if (!res.ok) throw new Error(`Gemini API error: ${JSON.stringify(data)}`)
+    return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  }
+
+  if (config.provider === 'anthropic') {
+    // Anthropic doesn't support audio transcription — fall back to Gemini or OpenAI
+    const geminiKey = Deno.env.get('GEMINI_API_KEY')
+    if (geminiKey) {
+      const fallbackModel = 'gemini-2.5-flash'
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { inlineData: { mimeType, data: base64Audio } },
+                { text: prompt },
+              ],
+            }],
+          }),
+        },
+      )
+      const data = await res.json()
+      if (!res.ok) throw new Error(`Gemini fallback error: ${JSON.stringify(data)}`)
+      return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+    }
+
+    const openaiKey = Deno.env.get('OPENAI_API_KEY')
+    if (openaiKey) {
+      const audioBytes = Uint8Array.from(atob(base64Audio), c => c.charCodeAt(0))
+      const formData = new FormData()
+      formData.append('file', new Blob([audioBytes], { type: mimeType }), 'audio.wav')
+      formData.append('model', 'whisper-1')
+      formData.append('language', 'pt')
+      const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${openaiKey}` },
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(`OpenAI Whisper fallback error: ${JSON.stringify(data)}`)
+      return data.text ?? ''
+    }
+
+    throw new Error('Anthropic does not support audio transcription. Set GEMINI_API_KEY or OPENAI_API_KEY as fallback.')
+  }
+
+  if (config.provider === 'openai') {
+    // OpenAI Whisper API for audio transcription
+    const audioBytes = Uint8Array.from(atob(base64Audio), c => c.charCodeAt(0))
+    const formData = new FormData()
+    formData.append('file', new Blob([audioBytes], { type: mimeType }), 'audio.wav')
+    formData.append('model', 'whisper-1')
+    formData.append('language', 'pt')
+
+    const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${config.apiKey}` },
+      body: formData,
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(`OpenAI Whisper error: ${JSON.stringify(data)}`)
+    return data.text ?? ''
+  }
+
+  throw new Error(`Unknown AI provider: ${config.provider}`)
+}
+
 export async function callAIProvider(
   prompt: string,
   options?: { temperature?: number; maxTokens?: number; jsonMode?: boolean },

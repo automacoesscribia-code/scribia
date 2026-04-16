@@ -26,9 +26,9 @@ export default async function AdminLayout({
   const userName = (profile as { full_name: string } | null)?.full_name ?? user.email?.split('@')[0] ?? 'Admin'
 
   return (
-    <div className="flex min-h-screen">
+    <div className="min-h-screen">
       <AdminSidebar userName={userName} />
-      <main className="ml-[220px] flex-1 p-8 min-h-screen">
+      <main className="md:ml-[220px] pt-14 md:pt-0 p-4 sm:p-6 md:p-8 min-h-screen">
         {children}
       </main>
     </div>

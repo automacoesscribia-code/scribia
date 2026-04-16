@@ -37,15 +37,15 @@ export function StatCard({
   return (
     <div
       className={cn(
-        'relative bg-bg2 border border-border-subtle rounded-xl p-5 overflow-hidden transition-colors hover:border-border-purple animate-fade-up',
+        'relative bg-bg2 border border-border-subtle rounded-xl p-4 sm:p-5 overflow-hidden transition-colors hover:border-border-purple animate-fade-up',
         accentClass[accent],
         className,
       )}
     >
-      <div className="text-[11.5px] text-text3 uppercase tracking-[0.8px] mb-2.5">
+      <div className="text-[11px] sm:text-[11.5px] text-text3 uppercase tracking-[0.8px] mb-2 sm:mb-2.5">
         {label}
       </div>
-      <div className="font-heading text-[32px] font-extrabold text-text leading-none">
+      <div className="font-heading text-[26px] sm:text-[32px] font-extrabold text-text leading-none">
         {value}
       </div>
       {sub && (

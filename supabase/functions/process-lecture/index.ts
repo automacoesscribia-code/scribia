@@ -1,5 +1,4 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { GoogleGenerativeAI } from 'https://esm.sh/@google/generative-ai@0.24.0'
 import {
   parsePlaceholders,
   generateEbookImages,
@@ -7,6 +6,7 @@ import {
   type EbookImageContext,
 } from '../_shared/ebook-images.ts'
 import { generatePdfFromMarkdown } from '../_shared/pdf-generator.ts'
+import { callAIProvider, transcribeAudio } from '../_shared/ai-provider.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,6 +16,8 @@ const corsHeaders = {
 interface ProcessRequest {
   lecture_id: string
   steps?: ('transcribe' | 'summarize' | 'ebook' | 'playbook')[]
+  chunk_start?: number
+  chunk_end?: number
 }
 
 // Default prompts (used when DB prompts are not available)
@@ -157,7 +159,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Unauthorized' }, 401)
     }
 
-    const { lecture_id, steps = ['transcribe', 'summarize', 'ebook', 'playbook'] }: ProcessRequest = await req.json()
+    const { lecture_id, steps = ['transcribe', 'summarize', 'ebook', 'playbook'], chunk_start, chunk_end }: ProcessRequest = await req.json()
 
     // Fetch lecture
     const { data: lecture, error: lectureErr } = await supabase
@@ -171,14 +173,6 @@ Deno.serve(async (req) => {
     }
 
     const eventId = lecture.event_id
-
-    // Initialize Gemini
-    const geminiKey = Deno.env.get('GEMINI_API_KEY')
-    if (!geminiKey) {
-      return jsonResponse({ error: 'GEMINI_API_KEY not configured' }, 500)
-    }
-    const genAI = new GoogleGenerativeAI(geminiKey)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
     // Load custom prompts from DB
     const { data: dbPrompts } = await supabase
@@ -198,11 +192,9 @@ Deno.serve(async (req) => {
     const results: Record<string, string> = {}
 
     // ========================
-    // STEP 1: Transcribe audio
+    // STEP 1: Transcribe audio (chunked — client sends chunk_start/chunk_end)
     // ========================
     if (steps.includes('transcribe')) {
-      await updateLecture(supabase, lecture_id, { processing_progress: 5 })
-
       // List audio chunks from storage
       const { data: audioFiles } = await supabase.storage
         .from('audio-files')
@@ -221,9 +213,24 @@ Deno.serve(async (req) => {
         audio_path: `${eventId}/${lecture_id}`,
       })
 
-      let fullTranscript = ''
+      // Determine which chunks to process in this invocation
+      const start = chunk_start ?? 0
+      const end = Math.min(chunk_end ?? chunks.length, chunks.length)
+      const totalChunks = chunks.length
 
-      for (let i = 0; i < chunks.length; i++) {
+      // If this is a partial batch, return chunk info so client knows what to do next
+      const isPartialBatch = (end < totalChunks)
+
+      // Get existing transcript to append to
+      const { data: existing } = await supabase
+        .from('lectures')
+        .select('transcript_text')
+        .eq('id', lecture_id)
+        .single()
+      let currentTranscript = (start > 0 && existing?.transcript_text) ? existing.transcript_text : ''
+
+      // Process chunks sequentially (1 at a time to stay within memory limits)
+      for (let i = start; i < end; i++) {
         const chunkPath = `${eventId}/${lecture_id}/${chunks[i].name}`
         const { data: audioData } = await supabase.storage
           .from('audio-files')
@@ -234,27 +241,35 @@ Deno.serve(async (req) => {
         const audioBytes = await audioData.arrayBuffer()
         const base64Audio = uint8ArrayToBase64(new Uint8Array(audioBytes))
 
-        const transcribeResult = await model.generateContent([
-          {
-            inlineData: {
-              mimeType: 'audio/wav',
-              data: base64Audio,
-            },
-          },
+        const chunkText = await transcribeAudio(
+          base64Audio,
+          'audio/wav',
           'Transcreva este áudio em português brasileiro. Retorne apenas o texto transcrito, sem timestamps ou formatação extra.',
-        ])
+        )
 
-        const chunkText = transcribeResult.response.text()
-        fullTranscript += (fullTranscript ? ' ' : '') + chunkText
+        currentTranscript += (currentTranscript ? ' ' : '') + chunkText
 
-        const progress = 5 + Math.round((i + 1) / chunks.length * 20)
+        const progress = Math.round((i + 1) / totalChunks * 25)
         await updateLecture(supabase, lecture_id, { processing_progress: progress })
       }
 
+      // Save accumulated transcript
       await updateLecture(supabase, lecture_id, {
-        transcript_text: fullTranscript,
-        processing_progress: 25,
+        transcript_text: currentTranscript,
+        processing_progress: isPartialBatch ? Math.round(end / totalChunks * 25) : 25,
       })
+
+      if (isPartialBatch) {
+        // Tell client to continue with next batch
+        return jsonResponse({
+          success: true,
+          partial: true,
+          next_chunk_start: end,
+          total_chunks: totalChunks,
+          results: { transcribe: 'partial' },
+        })
+      }
+
       results.transcribe = 'ok'
     }
 
@@ -279,18 +294,12 @@ Deno.serve(async (req) => {
           transcript: transcript.substring(0, 30000),
         })
 
-        const summaryResult = await model.generateContent({
-          contents: [{
-            role: 'user',
-            parts: [{ text: summaryPrompt }]
-          }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            temperature: 0.3,
-          },
+        const summaryText = await callAIProvider(summaryPrompt, {
+          temperature: 0.3,
+          jsonMode: true,
         })
 
-        const summaryData = JSON.parse(summaryResult.response.text())
+        const summaryData = JSON.parse(summaryText)
         await updateLecture(supabase, lecture_id, {
           summary: summaryData.summary,
           topics: summaryData.topics,
@@ -323,18 +332,10 @@ Deno.serve(async (req) => {
           transcript: d.transcript_text.substring(0, 30000),
         })
 
-        const ebookResult = await model.generateContent({
-          contents: [{
-            role: 'user',
-            parts: [{ text: ebookPrompt }]
-          }],
-          generationConfig: {
-            maxOutputTokens: 8192,
-            temperature: 0.7,
-          },
+        let ebookContent = await callAIProvider(ebookPrompt, {
+          maxTokens: 8192,
+          temperature: 0.7,
         })
-
-        let ebookContent = ebookResult.response.text()
 
         await updateLecture(supabase, lecture_id, { processing_progress: 65 })
 
@@ -455,18 +456,10 @@ Deno.serve(async (req) => {
           transcript: p.transcript_text.substring(0, 25000),
         })
 
-        const playbookResult = await model.generateContent({
-          contents: [{
-            role: 'user',
-            parts: [{ text: playbookPrompt }]
-          }],
-          generationConfig: {
-            maxOutputTokens: 4096,
-            temperature: 0.5,
-          },
+        const playbookContent = await callAIProvider(playbookPrompt, {
+          maxTokens: 4096,
+          temperature: 0.5,
         })
-
-        const playbookContent = playbookResult.response.text()
 
         // Save markdown version
         const playbookMdPath = `${eventId}/${lecture_id}/playbook.md`

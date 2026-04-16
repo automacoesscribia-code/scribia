@@ -1,0 +1,45 @@
+generated_at: "2026-03-23"
+project_name: scribia
+
+system:
+  os: Windows 10 Home 10.0.19045
+  architecture: x86_64
+  shell: bash
+
+cli_tools:
+  git:
+    installed: true
+    version: "2.53.0"
+  gh:
+    installed: true
+    version: "2.88.0"
+    authenticated: true
+    account: automacoesscribia-code
+  node:
+    installed: true
+    version: "24.13.0"
+  npm:
+    installed: true
+    version: "11.6.2"
+  supabase:
+    installed: false
+  docker:
+    installed: false
+  pnpm:
+    installed: false
+  bun:
+    installed: false
+
+repository:
+  initialized: true
+  remote_url: "https://github.com/automacoesscribia-code/scribia.git"
+  branch: main
+  initial_commit: "7d3ad71"
+
+user_profile: bob
+default_language: pt-BR
+
+validation:
+  essential_complete: true
+  recommended_complete: false
+  ready_for_development: true

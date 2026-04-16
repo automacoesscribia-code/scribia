@@ -50,22 +50,23 @@ export default async function AdminPage() {
   return (
     <div className="max-w-6xl">
       {/* Header */}
-      <div className="flex items-center justify-between mb-9">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 md:mb-9">
         <div>
-          <h1 className="font-heading text-2xl font-bold text-text">Painel Administrativo</h1>
+          <h1 className="font-heading text-xl sm:text-2xl font-bold text-text">Painel Administrativo</h1>
           <p className="text-[13px] text-text3 mt-0.5">Gerencie organizadores, eventos e convites</p>
         </div>
         <Link
           href="/admin/invitations?action=new&role=organizer"
-          className="inline-flex items-center gap-1.5 bg-purple text-white px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all hover:bg-purple-light glow-purple"
+          className="inline-flex items-center justify-center gap-1.5 bg-purple text-white px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all hover:bg-purple-light glow-purple self-start sm:self-auto"
         >
           <Plus className="w-3.5 h-3.5" />
-          Convidar Organizador
+          <span className="hidden sm:inline">Convidar Organizador</span>
+          <span className="sm:hidden">Convidar</span>
         </Link>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-7 stagger-children">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 md:mb-7 stagger-children">
         <StatCard
           label="Organizadores"
           value={organizerCount ?? 0}

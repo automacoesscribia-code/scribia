@@ -108,7 +108,7 @@ export function LectureFormModal({ eventId, speakers, lecture, onClose, onSaved,
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className={labelClass}>Data/Hora</label>
             <input {...register('scheduled_at')} type="datetime-local" className={inputClass} />

@@ -71,32 +71,32 @@ export function UserList({ users, extraInfo }: UserListProps) {
         {users.map((user) => (
           <div
             key={user.id}
-            className="flex items-center justify-between px-5 py-4 bg-bg2 border border-border-subtle rounded-xl"
+            className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 px-4 sm:px-5 py-3.5 sm:py-4 bg-bg2 border border-border-subtle rounded-xl"
           >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-purple-dim border border-border-purple flex items-center justify-center text-xs font-heading font-bold text-purple-light">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="w-9 h-9 rounded-full bg-purple-dim border border-border-purple flex items-center justify-center text-xs font-heading font-bold text-purple-light shrink-0">
                 {(user.full_name || user.email)[0].toUpperCase()}
               </div>
-              <div>
-                <div className="text-[13px] font-medium text-text">{user.full_name || 'Sem nome'}</div>
-                <div className="text-[11px] text-text3">
+              <div className="min-w-0">
+                <div className="text-[13px] font-medium text-text truncate">{user.full_name || 'Sem nome'}</div>
+                <div className="text-[11px] text-text3 truncate">
                   {user.email} · {user.roles.map((r) => roleLabel[r] ?? r).join(', ')}
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 sm:gap-4 ml-auto">
               {extraInfo?.[user.id] && (
-                <div className="text-right">
+                <div className="text-right hidden sm:block">
                   <div className="text-[11px] text-text3">{extraInfo[user.id]}</div>
                 </div>
               )}
-              <div className="text-[11px] text-text3">
+              <div className="text-[11px] text-text3 hidden md:block">
                 desde {new Date(user.created_at).toLocaleDateString('pt-BR')}
               </div>
               <button
                 onClick={() => handleDelete(user)}
                 disabled={deleting === user.id}
-                className="w-8 h-8 rounded-lg bg-bg3 border border-border-subtle flex items-center justify-center text-text3 hover:border-scribia-red/40 hover:bg-scribia-red/8 hover:text-scribia-red transition-all disabled:opacity-50 cursor-pointer"
+                className="w-8 h-8 rounded-lg bg-bg3 border border-border-subtle flex items-center justify-center text-text3 hover:border-scribia-red/40 hover:bg-scribia-red/8 hover:text-scribia-red transition-all disabled:opacity-50 cursor-pointer shrink-0"
                 title="Deletar usuario completamente"
               >
                 <Trash2 className={`w-3.5 h-3.5 ${deleting === user.id ? 'animate-pulse' : ''}`} />

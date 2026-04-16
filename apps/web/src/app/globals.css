@@ -287,6 +287,15 @@
   .hover-scale:hover {
     transform: scale(1.05);
   }
+
+  /* Hide scrollbar for horizontal tab strips */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* ─── Animations ─── */

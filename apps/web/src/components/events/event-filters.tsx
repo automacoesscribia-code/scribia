@@ -36,11 +36,11 @@ export function EventFilters({ currentStatus, currentQuery }: EventFiltersProps)
   )
 
   return (
-    <div className="flex gap-3">
+    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
       <select
         value={currentStatus || 'all'}
         onChange={(e) => updateParams('status', e.target.value)}
-        className="bg-bg3 border border-border-subtle rounded-lg px-3 py-2.5 text-[13px] text-text2 outline-none transition-all focus:border-border-purple focus:ring-1 focus:ring-purple/20 appearance-none cursor-pointer"
+        className="bg-bg3 border border-border-subtle rounded-lg px-3 py-2.5 text-[13px] text-text2 outline-none transition-all focus:border-border-purple focus:ring-1 focus:ring-purple/20 appearance-none cursor-pointer w-full sm:w-auto"
       >
         {STATUS_OPTIONS.map((opt) => (
           <option key={opt.value} value={opt.value}>

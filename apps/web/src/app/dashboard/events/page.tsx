@@ -35,14 +35,14 @@ export default async function EventsListPage({ searchParams }: Props) {
 
   return (
     <div className="max-w-6xl">
-      <div className="flex items-center justify-between mb-9">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 md:mb-9">
         <div>
-          <h1 className="font-heading text-2xl font-bold text-text">Eventos</h1>
+          <h1 className="font-heading text-xl sm:text-2xl font-bold text-text">Eventos</h1>
           <p className="text-[13px] text-text3 mt-0.5">Gerencie todos os seus eventos</p>
         </div>
         <Link
           href="/dashboard/events/new"
-          className="inline-flex items-center gap-1.5 bg-purple text-white px-4.5 py-2.5 rounded-lg text-[13px] font-medium transition-all hover:bg-purple-light glow-purple"
+          className="inline-flex items-center justify-center gap-1.5 bg-purple text-white px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all hover:bg-purple-light glow-purple self-start sm:self-auto"
         >
           <Plus className="w-3.5 h-3.5" />
           Novo Evento
@@ -52,7 +52,7 @@ export default async function EventsListPage({ searchParams }: Props) {
       <EventFilters currentStatus={params.status} currentQuery={params.q} />
 
       {events.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-5 stagger-children">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-5 stagger-children">
           {events.map((event) => (
             <EventCard
               key={event.id}

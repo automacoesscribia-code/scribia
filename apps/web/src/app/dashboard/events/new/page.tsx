@@ -89,11 +89,11 @@ export default function NewEventPage() {
         Voltar
       </Link>
 
-      <h1 className="font-heading text-2xl font-bold text-text mb-6">
+      <h1 className="font-heading text-xl sm:text-2xl font-bold text-text mb-5 sm:mb-6">
         Novo Evento
       </h1>
 
-      <div className="bg-bg2 border border-border-subtle rounded-2xl p-6">
+      <div className="bg-bg2 border border-border-subtle rounded-2xl p-4 sm:p-6">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
             <label className={labelClass}>Nome *</label>
@@ -115,7 +115,7 @@ export default function NewEventPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>Data início *</label>
               <input
@@ -155,7 +155,7 @@ export default function NewEventPage() {
             </div>
           )}
 
-          <div className="flex gap-3 pt-3 border-t border-border-subtle">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-3 border-t border-border-subtle">
             <button
               type="submit"
               disabled={isSubmitting}

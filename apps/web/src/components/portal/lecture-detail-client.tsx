@@ -65,32 +65,32 @@ export function LectureDetailClient({
       </Link>
 
       {/* Header */}
-      <div className="mb-6">
+      <div className="mb-5 sm:mb-6">
         <div className="flex items-center gap-3 mb-2">
           <Chip variant={chipVariant}>{chipLabel}</Chip>
           <span className="text-[11px] text-text3">{formatDuration(duration)}</span>
         </div>
-        <h1 className="font-heading text-2xl font-extrabold text-text">{title}</h1>
-        <p className="text-[13px] text-text3 mt-1">
+        <h1 className="font-heading text-xl sm:text-2xl font-extrabold text-text leading-tight break-words">{title}</h1>
+        <p className="text-[13px] text-text3 mt-1 break-words">
           {speaker} · {eventName}
         </p>
       </div>
 
       {/* Summary */}
       {summary && (
-        <div className="bg-bg2 border border-border-subtle rounded-xl p-5 mb-6">
+        <div className="bg-bg2 border border-border-subtle rounded-xl p-4 sm:p-5 mb-5 sm:mb-6">
           <h3 className="font-heading text-sm font-bold text-text mb-2">Resumo</h3>
           <p className="text-[13px] text-text2 leading-6">{summary}</p>
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex border-b border-border-subtle mb-6">
+      <div className="flex border-b border-border-subtle mb-5 sm:mb-6 overflow-x-auto no-scrollbar">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors ${
+            className={`flex items-center gap-1.5 px-3 sm:px-4 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
               activeTab === tab.id
                 ? 'border-purple text-purple-light'
                 : 'border-transparent text-text3 hover:text-text2'
@@ -115,7 +115,7 @@ export function LectureDetailClient({
       {activeTab === 'ebook' && (
         <div>
           {ebookContent ? (
-            <div className="bg-bg2 border border-border-subtle rounded-xl p-6">
+            <div className="bg-bg2 border border-border-subtle rounded-xl p-4 sm:p-6">
               <div className="prose prose-invert prose-sm max-w-none text-text2 leading-7 text-[13.5px]">
                 {ebookContent.split('\n').map((line, i) => {
                   if (line.startsWith('# ')) return <h2 key={i} className="font-heading text-lg font-bold text-text mt-6 mb-3">{line.slice(2)}</h2>
@@ -137,7 +137,7 @@ export function LectureDetailClient({
       {activeTab === 'playbook' && (
         <div>
           {playbookContent ? (
-            <div className="bg-bg2 border border-border-subtle rounded-xl p-6">
+            <div className="bg-bg2 border border-border-subtle rounded-xl p-4 sm:p-6">
               <div className="text-text2 leading-7 text-[13.5px]">
                 {playbookContent.split('\n').map((line, i) => {
                   if (line.startsWith('# ')) return <h2 key={i} className="font-heading text-lg font-bold text-text mt-6 mb-3">{line.slice(2)}</h2>

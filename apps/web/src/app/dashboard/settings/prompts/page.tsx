@@ -37,8 +37,8 @@ export default async function PromptsSettingsPage() {
 
   return (
     <div className="max-w-4xl">
-      <div className="mb-8">
-        <h1 className="font-heading text-[24px] font-extrabold text-text">
+      <div className="mb-6 md:mb-8">
+        <h1 className="font-heading text-[20px] sm:text-[24px] font-extrabold text-text leading-tight">
           Configuração de Prompts
         </h1>
         <p className="text-[13px] text-text3 mt-1">

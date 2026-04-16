@@ -84,7 +84,7 @@ export function SpeakerFormModal({ speaker, onClose, onSaved }: SpeakerFormModal
           <textarea {...register('bio')} rows={2} className={inputClass} placeholder="Breve biografia" />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className={labelClass}>Empresa</label>
             <input {...register('company')} className={inputClass} placeholder="Empresa" />

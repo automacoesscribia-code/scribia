@@ -45,9 +45,9 @@ export default async function MaterialsPage() {
 
   return (
     <div className="max-w-6xl">
-      <div className="flex items-center justify-between mb-9">
+      <div className="flex items-center justify-between mb-6 md:mb-9">
         <div>
-          <h1 className="font-heading text-2xl font-bold text-text">Materiais</h1>
+          <h1 className="font-heading text-xl sm:text-2xl font-bold text-text">Materiais</h1>
           <p className="text-[13px] text-text3 mt-0.5">E-books, playbooks e cards gerados</p>
         </div>
       </div>
@@ -61,14 +61,14 @@ export default async function MaterialsPage() {
               <Link
                 key={lecture.id}
                 href={`/dashboard/lectures/${lecture.id}`}
-                className="flex items-center justify-between bg-bg2 border border-border-subtle rounded-xl px-5 py-4 hover:border-border-purple transition-all"
+                className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 bg-bg2 border border-border-subtle rounded-xl px-4 sm:px-5 py-3.5 sm:py-4 hover:border-border-purple transition-all"
               >
-                <div>
-                  <p className="text-[13px] text-text font-medium">{lecture.title}</p>
-                  <p className="text-[11px] text-text3">{lecture.events?.name ?? 'Evento'}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] text-text font-medium truncate">{lecture.title}</p>
+                  <p className="text-[11px] text-text3 truncate">{lecture.events?.name ?? 'Evento'}</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-24 h-1.5 bg-bg3 rounded-full overflow-hidden">
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="w-20 sm:w-24 h-1.5 bg-bg3 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-purple rounded-full transition-all"
                       style={{ width: `${lecture.processing_progress}%` }}
@@ -90,17 +90,17 @@ export default async function MaterialsPage() {
           {items.map((lecture) => (
             <div
               key={lecture.id}
-              className="bg-bg2 border border-border-subtle rounded-xl px-5 py-4"
+              className="bg-bg2 border border-border-subtle rounded-xl px-4 sm:px-5 py-3.5 sm:py-4"
             >
-              <div className="flex items-start justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <Link
                     href={`/dashboard/lectures/${lecture.id}`}
-                    className="text-[14px] text-text font-medium hover:text-purple-light transition-colors"
+                    className="text-[14px] text-text font-medium hover:text-purple-light transition-colors break-words"
                   >
                     {lecture.title}
                   </Link>
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <div className="flex flex-wrap items-center gap-2 mt-0.5">
                     <span className="text-[11px] text-text3">{lecture.events?.name ?? 'Evento'}</span>
                     {lecture.speakers?.name && (
                       <>
@@ -111,7 +111,7 @@ export default async function MaterialsPage() {
                   </div>
                 </div>
 
-                <div className="flex gap-2 shrink-0 ml-4">
+                <div className="flex flex-wrap gap-2 shrink-0 sm:ml-4">
                   {lecture.ebook_url && (
                     <MaterialDownloadButton
                       storagePath={lecture.ebook_url}

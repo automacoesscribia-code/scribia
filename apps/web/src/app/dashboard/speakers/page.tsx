@@ -97,16 +97,16 @@ export default async function SpeakersPage() {
       </div>
 
       {/* Page header */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6 md:mb-8">
         <div>
-          <h1 className="font-heading text-[26px] font-extrabold text-text">
+          <h1 className="font-heading text-[22px] sm:text-[26px] font-extrabold text-text leading-tight">
             Adicionar Palestrantes
           </h1>
           <p className="text-[13px] text-text3 mt-1">
             Convide por e-mail ou importe uma lista CSV
           </p>
         </div>
-        <div className="bg-purple-dim border border-border-purple rounded-full px-3.5 py-1.5 text-[12px] text-purple-light flex items-center gap-1.5">
+        <div className="bg-purple-dim border border-border-purple rounded-full px-3.5 py-1.5 text-[12px] text-purple-light flex items-center gap-1.5 self-start sm:self-auto shrink-0">
           <UserCircle className="w-3.5 h-3.5" />
           {confirmed.length} confirmados · {pending.length} pendentes
         </div>

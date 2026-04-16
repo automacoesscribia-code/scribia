@@ -17,16 +17,17 @@ export default async function ParticipantsPage() {
 
   return (
     <div className="max-w-6xl">
-      <div className="flex items-center justify-between mb-9">
+      <div className="flex items-center justify-between mb-6 md:mb-9">
         <div>
-          <h1 className="font-heading text-2xl font-bold text-text">Participantes</h1>
+          <h1 className="font-heading text-xl sm:text-2xl font-bold text-text">Participantes</h1>
           <p className="text-[13px] text-text3 mt-0.5">Todos os participantes dos seus eventos</p>
         </div>
       </div>
 
       {participants.length > 0 ? (
         <div className="bg-bg2 border border-border-subtle rounded-[14px] overflow-hidden">
-          <table className="w-full border-collapse">
+         <div className="overflow-x-auto">
+          <table className="w-full border-collapse min-w-[600px]">
             <thead>
               <tr>
                 <th className="text-[10.5px] text-text3 uppercase tracking-[0.8px] px-5 py-2.5 text-left border-b border-border-subtle">Nome</th>
@@ -56,9 +57,10 @@ export default async function ParticipantsPage() {
               ))}
             </tbody>
           </table>
+         </div>
         </div>
       ) : (
-        <div className="mt-16 text-center">
+        <div className="mt-12 sm:mt-16 text-center">
           <p className="text-text3 text-[13px]">Nenhum participante registrado.</p>
         </div>
       )}

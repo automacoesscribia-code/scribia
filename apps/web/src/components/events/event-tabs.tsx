@@ -194,12 +194,12 @@ export function EventTabs({ eventId, lectures, speakers: initialSpeakers = [], p
   return (
     <div>
       {/* Tabs */}
-      <div className="flex border-b border-border-subtle">
+      <div className="flex border-b border-border-subtle overflow-x-auto no-scrollbar">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => { setActiveTab(tab.id); if (tab.id === 'speakers') loadSpeakers() }}
-            className={`px-4 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors ${
+            className={`px-3 sm:px-4 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
               activeTab === tab.id
                 ? 'border-purple text-purple-light'
                 : 'border-transparent text-text3 hover:text-text2'
@@ -214,9 +214,9 @@ export function EventTabs({ eventId, lectures, speakers: initialSpeakers = [], p
         {/* ===== LECTURES TAB ===== */}
         {activeTab === 'lectures' && (
           <div>
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
               <span className="text-[13px] text-text3">{lectures.length} palestras</span>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {selected.size > 0 && (
                   <button
                     onClick={reprocessSelected}
@@ -273,26 +273,26 @@ export function EventTabs({ eventId, lectures, speakers: initialSpeakers = [], p
                   return (
                     <div
                       key={lecture.id}
-                      className={`flex items-center gap-3 bg-bg2 border border-border-subtle rounded-xl p-3.5 transition-all hover:border-border-purple ${isUploading ? 'opacity-60' : ''}`}
+                      className={`flex flex-wrap sm:flex-nowrap items-center gap-3 bg-bg2 border border-border-subtle rounded-xl p-3.5 transition-all hover:border-border-purple ${isUploading ? 'opacity-60' : ''}`}
                     >
                       <input
                         type="checkbox"
                         checked={selected.has(lecture.id)}
                         onChange={() => toggleSelect(lecture.id)}
-                        className="h-4 w-4 rounded border-border-subtle bg-bg3 accent-purple"
+                        className="h-4 w-4 rounded border-border-subtle bg-bg3 accent-purple shrink-0"
                       />
-                      <Link href={`/dashboard/lectures/${lecture.id}`} className="flex-1 min-w-0 cursor-pointer">
-                        <p className="font-heading font-semibold text-[13px] text-text hover:text-purple-light transition-colors">
+                      <Link href={`/dashboard/lectures/${lecture.id}`} className="flex-1 min-w-0 cursor-pointer order-3 sm:order-none w-full sm:w-auto">
+                        <p className="font-heading font-semibold text-[13px] text-text hover:text-purple-light transition-colors break-words">
                           {lecture.title}
                         </p>
-                        <p className="text-[12px] text-text3 mt-0.5">
+                        <p className="text-[12px] text-text3 mt-0.5 break-words">
                           {lecture.speakers?.name ?? 'Sem palestrante'}
                           {lecture.scheduled_at && ` — ${new Date(lecture.scheduled_at).toLocaleString('pt-BR')}`}
                           {lecture.duration_seconds && ` (${Math.round(lecture.duration_seconds / 60)}min)`}
                         </p>
                       </Link>
                       <LectureStatusBadge status={lecture.status as LectureStatus} />
-                      <div className="flex gap-1.5">
+                      <div className="flex gap-1.5 ml-auto sm:ml-0">
                         {canUpload && (
                           <button
                             onClick={() => handleUploadClick(lecture.id)}
@@ -345,7 +345,7 @@ export function EventTabs({ eventId, lectures, speakers: initialSpeakers = [], p
         {/* ===== SPEAKERS TAB ===== */}
         {activeTab === 'speakers' && (
           <div>
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
               <span className="text-[13px] text-text3">{speakers.length} palestrantes</span>
               <button
                 onClick={() => { setEditingSpeaker(null); setShowSpeakerModal(true) }}

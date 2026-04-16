@@ -38,13 +38,13 @@ export default async function DashboardPage() {
   if (!fallbackEvent) {
     return (
       <div className="max-w-6xl">
-        <div className="flex items-center justify-between mb-9">
+        <div className="flex items-center justify-between mb-7 md:mb-9">
           <div>
-            <h1 className="font-heading text-2xl font-bold text-text">Dashboard</h1>
+            <h1 className="font-heading text-xl sm:text-2xl font-bold text-text">Dashboard</h1>
             <p className="text-[13px] text-text3 mt-0.5">Bem-vindo ao ScribIA</p>
           </div>
         </div>
-        <div className="mt-16 text-center">
+        <div className="mt-12 sm:mt-16 text-center">
           <div className="w-16 h-16 rounded-2xl bg-purple-dim border border-border-purple flex items-center justify-center mx-auto mb-4">
             <Plus className="w-7 h-7 text-purple-light" />
           </div>
@@ -120,21 +120,22 @@ export default async function DashboardPage() {
   return (
     <div className="max-w-6xl">
       {/* Topbar */}
-      <div className="flex items-center justify-between mb-9">
-        <div>
-          <h1 className="font-heading text-2xl font-bold text-text">Dashboard</h1>
-          <p className="text-[13px] text-text3 mt-0.5">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-7 md:mb-9">
+        <div className="min-w-0">
+          <h1 className="font-heading text-xl sm:text-2xl font-bold text-text">Dashboard</h1>
+          <p className="text-[13px] text-text3 mt-0.5 break-words">
             {activeEvent.name} · {startDate}–{endDate}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <button className="inline-flex items-center gap-1.5 bg-transparent border border-border-subtle text-text2 px-4 py-2.5 rounded-lg text-[13px] transition-all hover:border-border-purple hover:text-purple-light">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <button className="inline-flex items-center gap-1.5 bg-transparent border border-border-subtle text-text2 px-3 sm:px-4 py-2.5 rounded-lg text-[13px] transition-all hover:border-border-purple hover:text-purple-light">
             <Download className="w-3.5 h-3.5" />
-            Exportar relatório
+            <span className="hidden sm:inline">Exportar relatório</span>
+            <span className="sm:hidden">Exportar</span>
           </button>
           <Link
             href={`/dashboard/events/${activeEvent.id}`}
-            className="inline-flex items-center gap-1.5 bg-purple text-white px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all hover:bg-purple-light glow-purple"
+            className="inline-flex items-center gap-1.5 bg-purple text-white px-3 sm:px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all hover:bg-purple-light glow-purple"
           >
             <Plus className="w-3.5 h-3.5" />
             Nova palestra
@@ -143,7 +144,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-7 stagger-children">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 md:mb-7 stagger-children">
         <StatCard
           label="Palestras"
           value={totalLectures}
@@ -179,12 +180,12 @@ export default async function DashboardPage() {
       </div>
 
       {/* Content Grid: Table (left) + Actions + Progress (right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-4 md:gap-5">
         {/* Left: Recent lectures table */}
         <RecentLecturesTable lectures={recentLectures} eventId={activeEvent.id} />
 
         {/* Right: Quick actions + Processing */}
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-4 md:gap-5">
           <QuickActions eventId={activeEvent.id} />
           <ProcessingOverview
             eventId={activeEvent.id}

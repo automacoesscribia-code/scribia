@@ -52,23 +52,23 @@ export function SpeakerWelcome({ userName, lectures }: SpeakerWelcomeProps) {
   }, [router])
 
   return (
-    <div className="min-h-screen bg-bg flex items-center justify-center p-6">
-      <div className="max-w-2xl w-full space-y-6 animate-fade-up">
+    <div className="min-h-screen bg-bg flex items-center justify-center p-4 sm:p-6">
+      <div className="max-w-2xl w-full space-y-5 sm:space-y-6 animate-fade-up">
         {/* Logo */}
         <div className="text-center">
-          <div className="font-heading font-extrabold text-3xl text-purple-light tracking-tight">
+          <div className="font-heading font-extrabold text-2xl sm:text-3xl text-purple-light tracking-tight">
             SCRIBIA
           </div>
           <p className="text-text3 text-[12px] mt-1">Plataforma de Captação de Palestras</p>
         </div>
 
         {/* Welcome card */}
-        <div className="bg-bg2 border border-border-subtle rounded-2xl p-8">
-          <div className="text-center mb-6">
-            <h1 className="font-heading text-2xl font-bold text-text">
+        <div className="bg-bg2 border border-border-subtle rounded-2xl p-5 sm:p-8">
+          <div className="text-center mb-5 sm:mb-6">
+            <h1 className="font-heading text-xl sm:text-2xl font-bold text-text">
               Olá, {userName}!
             </h1>
-            <p className="text-[14px] text-text2 mt-2">
+            <p className="text-[13px] sm:text-[14px] text-text2 mt-2">
               Sua conta de palestrante está ativa.
             </p>
           </div>
@@ -137,10 +137,10 @@ export function SpeakerWelcome({ userName, lectures }: SpeakerWelcomeProps) {
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <a
             href="#"
-            className="flex-1 inline-flex items-center justify-center gap-2 bg-purple text-white px-6 py-3 rounded-xl text-[14px] font-medium hover:bg-purple-light glow-purple transition-all"
+            className="flex-1 inline-flex items-center justify-center gap-2 bg-purple text-white px-5 sm:px-6 py-3 rounded-xl text-[14px] font-medium hover:bg-purple-light glow-purple transition-all"
           >
             <Download className="w-4 h-4" />
             Baixar ScribIA Capture
@@ -148,7 +148,7 @@ export function SpeakerWelcome({ userName, lectures }: SpeakerWelcomeProps) {
           <button
             onClick={handleSignOut}
             disabled={signingOut}
-            className="inline-flex items-center gap-2 bg-bg2 border border-border-subtle text-text2 px-5 py-3 rounded-xl text-[14px] hover:bg-bg3 hover:text-text transition-all cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 bg-bg2 border border-border-subtle text-text2 px-5 py-3 rounded-xl text-[14px] hover:bg-bg3 hover:text-text transition-all cursor-pointer disabled:opacity-50"
           >
             <LogOut className="w-4 h-4" />
             {signingOut ? 'Saindo...' : 'Sair'}

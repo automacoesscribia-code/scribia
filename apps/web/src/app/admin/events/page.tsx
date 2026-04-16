@@ -46,13 +46,13 @@ export default async function AdminEventsPage() {
 
   return (
     <div className="max-w-5xl">
-      <div className="mb-9">
-        <h1 className="font-heading text-2xl font-bold text-text">Todos os Eventos</h1>
+      <div className="mb-6 md:mb-9">
+        <h1 className="font-heading text-xl sm:text-2xl font-bold text-text">Todos os Eventos</h1>
         <p className="text-[13px] text-text3 mt-0.5">{eventList.length} eventos na plataforma</p>
       </div>
 
       {eventList.length === 0 ? (
-        <div className="text-center py-16">
+        <div className="text-center py-12 sm:py-16">
           <p className="text-text3 text-[13px]">Nenhum evento criado ainda.</p>
         </div>
       ) : (
@@ -60,16 +60,16 @@ export default async function AdminEventsPage() {
           {eventList.map((event) => (
             <div
               key={event.id}
-              className="flex items-center justify-between px-5 py-4 bg-bg2 border border-border-subtle rounded-xl"
+              className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 px-4 sm:px-5 py-3.5 sm:py-4 bg-bg2 border border-border-subtle rounded-xl"
             >
-              <div>
-                <div className="text-[13px] font-medium text-text">{event.name}</div>
-                <div className="text-[11px] text-text3 mt-0.5">
+              <div className="min-w-0 flex-1">
+                <div className="text-[13px] font-medium text-text break-words">{event.name}</div>
+                <div className="text-[11px] text-text3 mt-0.5 break-words">
                   por {orgNames[event.organizer_id] ?? 'Desconhecido'} ·{' '}
                   {new Date(event.start_date).toLocaleDateString('pt-BR')}
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 shrink-0">
                 <span className={`px-2.5 py-1 rounded-md text-[11px] font-medium ${statusColor[event.status] ?? ''}`}>
                   {statusLabel[event.status] ?? event.status}
                 </span>

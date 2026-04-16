@@ -40,22 +40,23 @@ export default async function OrganizersPage() {
 
   return (
     <div className="max-w-4xl">
-      <div className="flex items-center justify-between mb-9">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 md:mb-9">
         <div>
-          <h1 className="font-heading text-2xl font-bold text-text">Organizadores</h1>
+          <h1 className="font-heading text-xl sm:text-2xl font-bold text-text">Organizadores</h1>
           <p className="text-[13px] text-text3 mt-0.5">{orgList.length} organizadores cadastrados</p>
         </div>
         <Link
           href="/admin/invitations?action=new&role=organizer"
-          className="inline-flex items-center gap-1.5 bg-purple text-white px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all hover:bg-purple-light glow-purple"
+          className="inline-flex items-center justify-center gap-1.5 bg-purple text-white px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all hover:bg-purple-light glow-purple self-start sm:self-auto"
         >
           <Plus className="w-3.5 h-3.5" />
-          Convidar Organizador
+          <span className="hidden sm:inline">Convidar Organizador</span>
+          <span className="sm:hidden">Convidar</span>
         </Link>
       </div>
 
       {orgList.length === 0 ? (
-        <div className="text-center py-16">
+        <div className="text-center py-12 sm:py-16">
           <p className="text-text3 text-[13px]">Nenhum organizador ainda.</p>
           <p className="text-text3 text-[13px] mt-1">
             <Link href="/admin/invitations?action=new&role=organizer" className="text-purple-light hover:text-purple transition-colors">

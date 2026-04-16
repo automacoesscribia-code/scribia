@@ -221,16 +221,16 @@ export function SpeakersPageClient({
       )}
 
       {/* Invite section */}
-      <div className="bg-bg2 border border-border-subtle rounded-2xl p-7 mb-6 animate-fade-up">
+      <div className="bg-bg2 border border-border-subtle rounded-2xl p-5 sm:p-7 mb-6 animate-fade-up">
         <div className="font-heading text-base font-bold text-text mb-1">
           Convidar por e-mail
         </div>
-        <p className="text-[13px] text-text3 mb-6">
+        <p className="text-[13px] text-text3 mb-5 sm:mb-6">
           O palestrante receberá um email com link para criar sua conta
         </p>
 
         {/* Email input row */}
-        <div className="flex gap-3 mb-4">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-4">
           <div className="flex-1 relative">
             <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-text3" />
             <input
@@ -250,7 +250,7 @@ export function SpeakersPageClient({
           <button
             onClick={emailTags.length > 0 ? sendInvites : addEmail}
             disabled={loading}
-            className="inline-flex items-center gap-2 bg-purple text-white px-6 py-3.5 rounded-xl text-[14px] font-medium hover:bg-purple-light glow-purple disabled:opacity-50 transition-all whitespace-nowrap cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 bg-purple text-white px-5 sm:px-6 py-3 sm:py-3.5 rounded-xl text-[14px] font-medium hover:bg-purple-light glow-purple disabled:opacity-50 transition-all whitespace-nowrap cursor-pointer"
           >
             <Send className="w-4 h-4" />
             {loading ? 'Enviando...' : emailTags.length > 0 ? `Enviar ${emailTags.length} convite${emailTags.length > 1 ? 's' : ''}` : 'Adicionar'}
@@ -285,24 +285,28 @@ export function SpeakersPageClient({
         )}
 
         {/* Divider + CSV */}
-        <div className="flex items-center gap-4 mt-5">
-          <div className="flex-1 h-px bg-border-subtle" />
-          <span className="text-[11.5px] text-text3">ou</span>
-          <div className="flex-1 h-px bg-border-subtle" />
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="inline-flex items-center gap-1.5 bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-[12.5px] text-text2 hover:border-border-purple hover:text-purple-light transition-all cursor-pointer"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            Importar CSV
-          </button>
-          <button
-            onClick={downloadTemplate}
-            className="inline-flex items-center gap-1.5 bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-[12.5px] text-text2 hover:border-border-purple hover:text-purple-light transition-all cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Baixar modelo
-          </button>
+        <div className="mt-5">
+          <div className="flex items-center gap-4 mb-3">
+            <div className="flex-1 h-px bg-border-subtle" />
+            <span className="text-[11.5px] text-text3">ou</span>
+            <div className="flex-1 h-px bg-border-subtle" />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="inline-flex items-center gap-1.5 bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-[12.5px] text-text2 hover:border-border-purple hover:text-purple-light transition-all cursor-pointer"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Importar CSV
+            </button>
+            <button
+              onClick={downloadTemplate}
+              className="inline-flex items-center gap-1.5 bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-[12.5px] text-text2 hover:border-border-purple hover:text-purple-light transition-all cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Baixar modelo
+            </button>
+          </div>
           <input
             ref={fileRef}
             type="file"
@@ -326,7 +330,8 @@ export function SpeakersPageClient({
             </div>
           </div>
           {pending.length > 0 ? (
-            <table className="w-full border-collapse">
+            <div className="overflow-x-auto">
+            <table className="w-full border-collapse min-w-[500px]">
               <thead>
                 <tr>
                   <th className="text-[10px] text-text3 uppercase tracking-[0.8px] px-5 py-2.5 text-left border-b border-border-subtle">
@@ -384,6 +389,7 @@ export function SpeakersPageClient({
                 })}
               </tbody>
             </table>
+            </div>
           ) : (
             <div className="px-5 py-8 text-center text-[13px] text-text3">
               Nenhum convite pendente.

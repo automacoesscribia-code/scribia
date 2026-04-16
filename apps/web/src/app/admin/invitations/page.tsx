@@ -182,14 +182,14 @@ export default function InvitationsPage() {
 
   return (
     <div className="max-w-4xl">
-      <div className="flex items-center justify-between mb-9">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 md:mb-9">
         <div>
-          <h1 className="font-heading text-2xl font-bold text-text">Convites</h1>
+          <h1 className="font-heading text-xl sm:text-2xl font-bold text-text">Convites</h1>
           <p className="text-[13px] text-text3 mt-0.5">Gerencie convites para organizadores e participantes</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="inline-flex items-center gap-1.5 bg-purple text-white px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all hover:bg-purple-light glow-purple"
+          className="inline-flex items-center justify-center gap-1.5 bg-purple text-white px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all hover:bg-purple-light glow-purple self-start sm:self-auto"
         >
           <Plus className="w-3.5 h-3.5" />
           Novo Convite
@@ -291,19 +291,19 @@ export default function InvitationsPage() {
             return (
               <div
                 key={inv.id}
-                className="flex items-center justify-between px-5 py-4 bg-bg2 border border-border-subtle rounded-xl"
+                className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 px-4 sm:px-5 py-3.5 sm:py-4 bg-bg2 border border-border-subtle rounded-xl"
               >
-                <div className="flex items-center gap-3">
-                  <DisplayIcon className={`w-4 h-4 ${statusColor[displayStatus] ?? 'text-text3'}`} />
-                  <div>
-                    <div className="text-[13px] font-medium text-text">{inv.email}</div>
-                    <div className="text-[11px] text-text3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <DisplayIcon className={`w-4 h-4 shrink-0 ${statusColor[displayStatus] ?? 'text-text3'}`} />
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-medium text-text truncate">{inv.email}</div>
+                    <div className="text-[11px] text-text3 truncate">
                       {roleLabel[inv.role] ?? inv.role} · {statusLabel[displayStatus] ?? displayStatus}
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="text-[11px] text-text3 mr-2">
+                <div className="flex flex-wrap items-center gap-2 ml-auto">
+                  <div className="text-[11px] text-text3 mr-2 hidden sm:block">
                     {new Date(inv.created_at).toLocaleDateString('pt-BR')}
                   </div>
 

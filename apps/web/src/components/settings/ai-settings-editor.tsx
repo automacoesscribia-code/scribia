@@ -112,7 +112,7 @@ export function AiSettingsEditor({ settings }: Props) {
   return (
     <div className="space-y-6">
       {/* Provider Selection */}
-      <div className="bg-bg2 border border-border-subtle rounded-2xl p-6">
+      <div className="bg-bg2 border border-border-subtle rounded-2xl p-4 sm:p-6">
         <div className="flex items-center gap-2 mb-4">
           <Cpu className="w-4 h-4 text-purple-light" />
           <h2 className="font-heading text-[16px] font-bold text-text">
@@ -123,7 +123,7 @@ export function AiSettingsEditor({ settings }: Props) {
           Selecione o provedor que sera usado para gerar resumos, e-books e playbooks.
         </p>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {PROVIDERS.map((p) => (
             <button
               key={p.value}
@@ -142,7 +142,7 @@ export function AiSettingsEditor({ settings }: Props) {
       </div>
 
       {/* API Key */}
-      <div className="bg-bg2 border border-border-subtle rounded-2xl p-6">
+      <div className="bg-bg2 border border-border-subtle rounded-2xl p-4 sm:p-6">
         <div className="flex items-center gap-2 mb-4">
           <Key className="w-4 h-4 text-purple-light" />
           <h2 className="font-heading text-[16px] font-bold text-text">
@@ -182,7 +182,7 @@ export function AiSettingsEditor({ settings }: Props) {
       </div>
 
       {/* Model Selection */}
-      <div className="bg-bg2 border border-border-subtle rounded-2xl p-6">
+      <div className="bg-bg2 border border-border-subtle rounded-2xl p-4 sm:p-6">
         <div className="flex items-center gap-2 mb-4">
           <Zap className="w-4 h-4 text-purple-light" />
           <h2 className="font-heading text-[16px] font-bold text-text">
@@ -212,14 +212,14 @@ export function AiSettingsEditor({ settings }: Props) {
       </div>
 
       {/* Save Bar */}
-      <div className="flex items-center justify-between bg-bg2 border border-border-subtle rounded-2xl px-6 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-bg2 border border-border-subtle rounded-2xl px-4 sm:px-6 py-4">
         <span className="text-[11px] text-text3">
           Ultima atualizacao: {new Date(settings.updated_at).toLocaleString('pt-BR')}
         </span>
         <button
           onClick={handleSave}
           disabled={!isModified || saving}
-          className="inline-flex items-center gap-2 bg-purple text-white px-6 py-2.5 rounded-xl text-[13px] font-medium hover:bg-purple-light transition-all disabled:opacity-40 cursor-pointer"
+          className="inline-flex items-center gap-2 bg-purple text-white px-5 sm:px-6 py-2.5 rounded-xl text-[13px] font-medium hover:bg-purple-light transition-all disabled:opacity-40 cursor-pointer"
         >
           {saving ? (
             <Loader2 className="w-4 h-4 animate-spin" />
