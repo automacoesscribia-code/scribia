@@ -43,12 +43,18 @@ export default async function LectureDetailPage({ params }: Props) {
   const getChunkIndex = (name: string) => {
     const m = name.match(/chunk_(\d+)\.wav$/); return m ? parseInt(m[1], 10) : 0
   }
-  const audioChunks = (audioFiles ?? [])
+  const allAudioFiles = audioFiles ?? []
+  const audioChunks = allAudioFiles
     .filter((f: { name: string }) => f.name.endsWith('.wav'))
     .sort((a: { name: string }, b: { name: string }) => getChunkIndex(a.name) - getChunkIndex(b.name))
 
+  // Also detect uploaded single-file audio (final.webm from web upload)
+  const hasFinalWebm = allAudioFiles.some((f: { name: string }) => f.name === 'final.webm')
+  const hasAnyAudio = audioChunks.length > 0 || hasFinalWebm
+  const audioChunkCount = hasAnyAudio ? Math.max(audioChunks.length, hasFinalWebm ? 1 : 0) : 0
+
   // Use concatenation API for full audio playback
-  const audioUrl = audioChunks.length > 0 ? `/api/audio/${lecture.id}` : null
+  const audioUrl = hasAnyAudio ? `/api/audio/${lecture.id}` : null
 
   return (
     <div className="max-w-5xl">
@@ -64,7 +70,7 @@ export default async function LectureDetailPage({ params }: Props) {
       <LectureDetailClient
         lecture={lecture}
         audioUrl={audioUrl}
-        audioChunkCount={audioChunks.length}
+        audioChunkCount={audioChunkCount}
         eventId={lecture.event_id}
       />
     </div>

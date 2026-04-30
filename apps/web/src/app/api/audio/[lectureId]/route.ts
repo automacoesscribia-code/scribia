@@ -81,18 +81,46 @@ export async function GET(
   const storagePath = lecture.audio_path ?? `${lecture.event_id}/${lecture.id}`
   const mergedMp3Path = `${storagePath}/merged.mp3`
 
-  // 1. Check if merged.mp3 already exists
+  // 1. Check if merged.mp3 already exists and is valid (> 1KB)
   const { data: existing } = await adminClient.storage
     .from('audio-files')
     .createSignedUrl(mergedMp3Path, 3600)
 
   if (existing?.signedUrl) {
-    // Proxy the audio instead of redirecting (avoids CORS issues with <audio> elements)
     const proxyRes = await fetch(existing.signedUrl)
     if (proxyRes.ok && proxyRes.body) {
       const contentLength = proxyRes.headers.get('content-length')
+      const size = contentLength ? parseInt(contentLength, 10) : 0
+
+      // If merged.mp3 is too small (< 1KB), it's corrupt — delete and re-merge
+      if (size < 1024) {
+        console.warn(`merged.mp3 is only ${size} bytes — deleting corrupt cache`)
+        await adminClient.storage.from('audio-files').remove([mergedMp3Path])
+      } else {
+        const headers: Record<string, string> = {
+          'Content-Type': 'audio/mpeg',
+          'Accept-Ranges': 'bytes',
+          'Cache-Control': 'private, max-age=3600',
+        }
+        if (contentLength) headers['Content-Length'] = contentLength
+        return new NextResponse(proxyRes.body, { status: 200, headers })
+      }
+    }
+  }
+
+  // 2. Check if a single uploaded file (final.webm) exists — serve directly
+  const finalWebmPath = `${storagePath}/final.webm`
+  const { data: finalWebmUrl } = await adminClient.storage
+    .from('audio-files')
+    .createSignedUrl(finalWebmPath, 3600)
+
+  if (finalWebmUrl?.signedUrl) {
+    const proxyRes = await fetch(finalWebmUrl.signedUrl)
+    if (proxyRes.ok && proxyRes.body) {
+      const contentLength = proxyRes.headers.get('content-length')
+      const contentType = proxyRes.headers.get('content-type') || 'audio/webm'
       const headers: Record<string, string> = {
-        'Content-Type': 'audio/mpeg',
+        'Content-Type': contentType,
         'Accept-Ranges': 'bytes',
         'Cache-Control': 'private, max-age=3600',
       }
@@ -101,7 +129,7 @@ export async function GET(
     }
   }
 
-  // 2. Merged file doesn't exist — build from chunks
+  // 3. No merged MP3 and no final.webm — build from WAV chunks
 
   // List ALL chunks with pagination
   const allFiles: { name: string }[] = []

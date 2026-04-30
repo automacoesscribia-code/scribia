@@ -3,20 +3,22 @@
 import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { useRouter } from 'next/navigation'
-import { Upload, Scissors, AlertTriangle, Loader2, Mic } from 'lucide-react'
+import { Upload, Scissors, AlertTriangle, Loader2, Mic, Trash2 } from 'lucide-react'
 
 interface AudioEditorProps {
   lectureId: string
   eventId: string
   hasAudio: boolean
+  onAudioDeleted?: () => void
 }
 
 const ACCEPTED_FORMATS = '.mp3,.wav,.webm,.m4a,.ogg'
 const MAX_SIZE_MB = 500
 
-export function AudioEditor({ lectureId, eventId, hasAudio }: AudioEditorProps) {
-  const [mode, setMode] = useState<'idle' | 'replace' | 'trim'>('idle')
+export function AudioEditor({ lectureId, eventId, hasAudio, onAudioDeleted }: AudioEditorProps) {
+  const [mode, setMode] = useState<'idle' | 'replace' | 'trim' | 'delete'>('idle')
   const [uploading, setUploading] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [trimStart, setTrimStart] = useState(0)
   const [trimEnd, setTrimEnd] = useState(100)
@@ -43,25 +45,18 @@ export function AudioEditor({ lectureId, eventId, hasAudio }: AudioEditorProps) 
     setError(null)
 
     try {
-      // Backup original if exists
+      // If replacing existing audio, delete all old files first (chunks, merged cache, old final)
       if (hasAudio) {
-        const backupPath = `audio-files/${eventId}/${lectureId}/backup_${Date.now()}.webm`
-        const originalPath = `audio-files/${eventId}/${lectureId}/final.webm`
-
-        // Copy original to backup
-        const { data: origData } = await supabase.storage
-          .from('audio-files')
-          .download(originalPath)
-
-        if (origData) {
-          await supabase.storage
-            .from('audio-files')
-            .upload(backupPath, origData, { upsert: true })
+        setUploadProgress(10)
+        const res = await fetch(`/api/audio/${lectureId}/delete`, { method: 'DELETE' })
+        if (!res.ok) {
+          const data = await res.json()
+          throw new Error(data.error || 'Erro ao limpar áudio anterior')
         }
       }
 
       // Upload new file
-      const uploadPath = `audio-files/${eventId}/${lectureId}/final.webm`
+      const uploadPath = `${eventId}/${lectureId}/final.webm`
       setUploadProgress(30)
 
       const { error: uploadError } = await supabase.storage
@@ -109,6 +104,27 @@ export function AudioEditor({ lectureId, eventId, hasAudio }: AudioEditorProps) 
     setUploading(false)
   }
 
+  async function handleDeleteAudio() {
+    setDeleting(true)
+    setError(null)
+
+    try {
+      const res = await fetch(`/api/audio/${lectureId}/delete`, { method: 'DELETE' })
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || `Erro ${res.status}`)
+      }
+
+      setMode('idle')
+      onAudioDeleted?.()
+      router.refresh()
+    } catch (e) {
+      setError(`Erro ao excluir áudio: ${e instanceof Error ? e.message : e}`)
+    }
+    setDeleting(false)
+  }
+
   async function handleTrim() {
     setError('Funcionalidade de trim será implementada com Web Audio API. Por enquanto, substitua o áudio completo.')
   }
@@ -127,18 +143,27 @@ export function AudioEditor({ lectureId, eventId, hasAudio }: AudioEditorProps) 
           <div className="flex gap-2">
             <button
               onClick={() => setMode('replace')}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg bg-bg3 border border-border-subtle text-[12px] text-text2 hover:border-border-purple hover:text-purple-light transition-all"
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg bg-bg3 border border-border-subtle text-[12px] text-text2 hover:border-border-purple hover:text-purple-light transition-all cursor-pointer"
             >
               <Upload className="w-3.5 h-3.5" />
               Substituir Áudio
             </button>
             <button
               onClick={() => setMode('trim')}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg bg-bg3 border border-border-subtle text-[12px] text-text2 hover:border-border-purple hover:text-purple-light transition-all"
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg bg-bg3 border border-border-subtle text-[12px] text-text2 hover:border-border-purple hover:text-purple-light transition-all cursor-pointer"
             >
               <Scissors className="w-3.5 h-3.5" />
               Editar (Trim)
             </button>
+            {hasAudio && (
+              <button
+                onClick={() => setMode('delete')}
+                className="flex items-center justify-center gap-2 py-3 px-4 rounded-lg bg-bg3 border border-border-subtle text-[12px] text-text2 hover:border-scribia-red/40 hover:bg-scribia-red/8 hover:text-scribia-red transition-all cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Excluir
+              </button>
+            )}
           </div>
         )}
 
@@ -200,6 +225,42 @@ export function AudioEditor({ lectureId, eventId, hasAudio }: AudioEditorProps) 
               className="hidden"
               onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
             />
+          </div>
+        )}
+
+        {mode === 'delete' && (
+          <div className="bg-scribia-red/8 border border-scribia-red/20 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-scribia-red shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[13px] text-text font-medium mb-1">Excluir todo o áudio?</p>
+                <p className="text-[12px] text-text3 mb-3">
+                  Todos os chunks de áudio, transcrição, resumo e materiais gerados serão excluídos permanentemente.
+                  Esta ação não pode ser desfeita.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleDeleteAudio}
+                    disabled={deleting}
+                    className="px-4 py-1.5 rounded-lg bg-scribia-red/20 text-scribia-red text-[12px] font-medium hover:bg-scribia-red/30 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {deleting ? (
+                      <span className="flex items-center gap-1.5">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Excluindo...
+                      </span>
+                    ) : 'Sim, excluir tudo'}
+                  </button>
+                  <button
+                    onClick={() => setMode('idle')}
+                    disabled={deleting}
+                    className="px-4 py-1.5 rounded-lg bg-bg3 text-text3 text-[12px] hover:text-text transition-all cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
